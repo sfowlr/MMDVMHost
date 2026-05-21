@@ -20,3 +20,4 @@ Images
 .vscode
 *.ambe
 GitVersion.h
+*.o.tmp
