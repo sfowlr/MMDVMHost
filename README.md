@@ -59,28 +59,25 @@ The DVMega supports D-Star, DMR, and System Fusion.
 
 ## Requirements
 
-- **OS**: 32-bit or 64-bit Linux, or Windows (Visual Studio 2022, x86/x64)
+- **OS**: Linux (32/64-bit), macOS, or Windows (Visual Studio 2022, x86/x64)
 - **Compiler**: C++17-capable compiler (GCC, Clang, or MSVC)
 - **Libraries**:
-  - `libpthread` - POSIX threads
-  - `libutil` - login utilities
-  - `libmosquitto` - MQTT client library (for logging and remote control)
-  - `nlohmann/json` - JSON header library (for structured logging)
+  - `libpthread` - POSIX threads (Linux/macOS)
+  - `libutil` - login utilities (Linux only)
+  - `libmosquitto` - Eclipse Mosquitto MQTT client library
+  - `nlohmann/json` - JSON for Modern C++ (header-only)
 - **Hardware**: MMDVM-compatible modem connected via UART, I2C, or UDP
-
-### Installing Dependencies
-
-**Debian/Ubuntu/Raspberry Pi OS:**
-
-```bash
-sudo apt-get install build-essential libmosquitto-dev nlohmann-json3-dev
-```
 
 ## Building
 
 ### Linux
 
+Install dependencies, then build:
+
 ```bash
+# Debian/Ubuntu/Raspberry Pi OS
+sudo apt-get install build-essential libmosquitto-dev nlohmann-json3-dev
+
 git clone https://github.com/g4klx/MMDVMHost.git
 cd MMDVMHost
 make
@@ -88,19 +85,50 @@ make
 
 ### macOS
 
-Install dependencies via Homebrew:
+Install dependencies via Homebrew, then build:
 
 ```bash
 brew install mosquitto nlohmann-json
-```
 
-Then build normally:
-
-```bash
+git clone https://github.com/g4klx/MMDVMHost.git
+cd MMDVMHost
 make
 ```
 
 The Makefile auto-detects macOS via `uname -s` and adjusts include/library paths for Homebrew (both `/usr/local` and `/opt/homebrew` for Apple Silicon).
+
+### Windows (Visual Studio 2022)
+
+Open `MMDVMHost.sln` in Visual Studio 2022. Two external libraries are required: Eclipse Mosquitto and nlohmann/json.
+
+**Option A: vcpkg (recommended)**
+
+vcpkg handles both dependencies and integrates directly with MSBuild:
+
+```powershell
+git clone https://github.com/microsoft/vcpkg.git
+cd vcpkg
+.\bootstrap-vcpkg.bat
+.\vcpkg integrate install
+.\vcpkg install mosquitto:x64-windows nlohmann-json:x64-windows
+```
+
+After `vcpkg integrate install`, Visual Studio will automatically find both libraries. Build the solution normally (Debug or Release, x64).
+
+**Option B: Manual installation**
+
+1. **Mosquitto**: Download and run the official installer from [mosquitto.org/download](https://mosquitto.org/download/). The installer places headers and link libraries in `C:\Program Files\mosquitto\devel\` — this is the path the `.vcxproj` already references. **Note**: Mosquitto is *not* available as a NuGet package. The official installer is the only manual option.
+
+2. **nlohmann/json**: Install via NuGet in Visual Studio:
+   - Right-click the project in Solution Explorer → **Manage NuGet Packages**
+   - Search for `nlohmann.json` and install it
+   - This provides `#include <nlohmann/json.hpp>` automatically
+
+   Alternatively, download the single header `json.hpp` from [the GitHub releases](https://github.com/nlohmann/json/releases) and place it at `C:\Program Files\nlohmann\json.hpp` (this path is already in the `.vcxproj` include directories).
+
+Build the solution (Build → Build Solution, or Ctrl+Shift+B).
+
+### Build Notes
 
 The build auto-detects the git revision and embeds it in the binary via `GitVersion.h`.
 
