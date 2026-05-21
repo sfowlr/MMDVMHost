@@ -173,6 +173,8 @@ public:
 	unsigned int getDMRModeHang() const;
 	DMR_OVCM     getDMROVCM() const;
 	bool         getDMRProtect() const;
+	bool         getDMRMQTTVoice() const;
+	bool         getDMRMQTTData() const;
 #endif
 
 #if defined(USE_YSF)
@@ -468,6 +470,8 @@ private:
 #if defined(USE_DMR)
 	DMR_OVCM     m_dmrOVCM;
 	bool         m_dmrProtect;
+	bool         m_dmrMQTTVoice;
+	bool         m_dmrMQTTData;
 #endif
 
 #if defined(USE_YSF)

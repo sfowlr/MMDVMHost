@@ -626,6 +626,8 @@ int CMMDVMHost::run()
 		dmrBeacons                  = m_conf.getDMRBeacons();
 		DMR_OVCM ovcm               = m_conf.getDMROVCM();
 		bool protect                = m_conf.getDMRProtect();
+		bool mqttVoice              = m_conf.getDMRMQTTVoice();
+		bool mqttData               = m_conf.getDMRMQTTData();
 
 		if (txHang > m_dmrRFModeHang)
 			txHang = m_dmrRFModeHang;
@@ -671,6 +673,10 @@ int CMMDVMHost::run()
 
 		if (protect)
 			LogInfo("    Protect: yes");
+		if (mqttVoice)
+			LogInfo("    MQTT Voice: yes");
+		if (mqttData)
+			LogInfo("    MQTT Data: yes");
 
 		switch (dmrBeacons) {
 			case DMR_BEACONS::NETWORK: {
@@ -701,7 +707,7 @@ int CMMDVMHost::run()
 				break;
 		}
 
-		m_dmr = new CDMRControl(id, colorCode, callHang, selfOnly, embeddedLCOnly, dumpTAData, prefixes, blackList, whiteList, slot1TGWhiteList, slot2TGWhiteList, m_timeout, m_modem, m_dmrNetwork, m_duplex, m_dmrLookup, rssi, jitter, ovcm, protect);
+		m_dmr = new CDMRControl(id, colorCode, callHang, selfOnly, embeddedLCOnly, dumpTAData, prefixes, blackList, whiteList, slot1TGWhiteList, slot2TGWhiteList, m_timeout, m_modem, m_dmrNetwork, m_duplex, m_dmrLookup, rssi, jitter, ovcm, protect, mqttVoice, mqttData);
 
 		m_dmrTXTimer.setTimeout(txHang);
 	}

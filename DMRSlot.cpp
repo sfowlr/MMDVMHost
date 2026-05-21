@@ -46,6 +46,8 @@ CDMRLookup*    CDMRSlot::m_lookup = nullptr;
 unsigned int   CDMRSlot::m_hangCount = 3U * 17U;
 DMR_OVCM       CDMRSlot::m_ovcm = DMR_OVCM::OFF;
 bool           CDMRSlot::m_protect = false;
+bool           CDMRSlot::m_mqttVoice = false;
+bool           CDMRSlot::m_mqttData = false;
 
 CRSSIInterpolator* CDMRSlot::m_rssiMapper = nullptr;
 
@@ -586,6 +588,7 @@ bool CDMRSlot::writeModem(unsigned char *data, unsigned int len)
 				bptc.decode(data + 2U, payload);
 				::sprintf(title, "DMR Slot %u, Data 1/2", m_slotNo);
 				CUtils::dump(1U, title, payload, 12U);
+				publishMQTTData(payload, 12U, "rf", "1/2");
 				bptc.encode(payload, data + 2U);
 			} else if (dataType == DT_RATE_34_DATA) {
 				CDMRTrellis trellis;
@@ -594,6 +597,7 @@ bool CDMRSlot::writeModem(unsigned char *data, unsigned int len)
 				if (ret) {
 					::sprintf(title, "DMR Slot %u, Data 3/4", m_slotNo);
 					CUtils::dump(1U, title, payload, 18U);
+					publishMQTTData(payload, 18U, "rf", "3/4");
 					trellis.encode(payload, data + 2U);
 				} else {
 					LogMessage("DMR Slot %u, unfixable RF rate 3/4 data", m_slotNo);
@@ -602,6 +606,7 @@ bool CDMRSlot::writeModem(unsigned char *data, unsigned int len)
 			} else {
 				::sprintf(title, "DMR Slot %u, Data 1/1", m_slotNo);
 				CUtils::dump(1U, title, data + 2U, 24U);
+				publishMQTTData(data + 2U, 24U, "rf", "1/1");
 			}
 
 			// Regenerate the Slot Type
@@ -655,6 +660,8 @@ bool CDMRSlot::writeModem(unsigned char *data, unsigned int len)
 			m_rfEmbeddedData[m_rfEmbeddedWriteN].reset();
 
 			writeJSONRSSI();
+
+			publishMQTTVoice(data + 2U, DMR_FRAME_LENGTH_BYTES, "rf", 0U);
 
 			if (!m_rfTimeout) {
 				data[0U] = TAG_DATA;
@@ -832,6 +839,8 @@ bool CDMRSlot::writeModem(unsigned char *data, unsigned int len)
 			emb.setColorCode(m_colorCode);
 			emb.setLCSS(lcss);
 			emb.getData(data + 2U);
+
+			publishMQTTVoice(data + 2U, DMR_FRAME_LENGTH_BYTES, "rf", m_rfN);
 
 			if (!m_rfTimeout) {
 				data[0U] = TAG_DATA;
@@ -1491,6 +1500,8 @@ void CDMRSlot::writeNetwork(const CDMRData& dmrData)
 				m_netErrs += m_fec.regenerateDMR(data + 2U);
 			m_netBits += 141U;
 
+			publishMQTTVoice(data + 2U, DMR_FRAME_LENGTH_BYTES, "network", 0U);
+
 			data[0U] = TAG_DATA;
 			data[1U] = 0x00U;
 
@@ -1650,6 +1661,8 @@ void CDMRSlot::writeNetwork(const CDMRData& dmrData)
 		emb.setLCSS(lcss);
 		emb.getData(data + 2U);
 
+		publishMQTTVoice(data + 2U, DMR_FRAME_LENGTH_BYTES, "network", dmrData.getN());
+
 		data[0U] = TAG_DATA;
 		data[1U] = 0x00U;
 
@@ -1787,6 +1800,7 @@ void CDMRSlot::writeNetwork(const CDMRData& dmrData)
 			bptc.decode(data + 2U, payload);
 			::sprintf(title, "DMR Slot %u, Data 1/2", m_slotNo);
 			CUtils::dump(1U, title, payload, 12U);
+			publishMQTTData(payload, 12U, "network", "1/2");
 			bptc.encode(payload, data + 2U);
 		} else if (dataType == DT_RATE_34_DATA) {
 			CDMRTrellis trellis;
@@ -1795,6 +1809,7 @@ void CDMRSlot::writeNetwork(const CDMRData& dmrData)
 			if (ret) {
 				::sprintf(title, "DMR Slot %u, Data 3/4", m_slotNo);
 				CUtils::dump(1U, title, payload, 18U);
+				publishMQTTData(payload, 18U, "network", "3/4");
 				trellis.encode(payload, data + 2U);
 			} else {
 				LogMessage("DMR Slot %u, unfixable network rate 3/4 data", m_slotNo);
@@ -1803,6 +1818,7 @@ void CDMRSlot::writeNetwork(const CDMRData& dmrData)
 		} else {
 			::sprintf(title, "DMR Slot %u, Data 1/1", m_slotNo);
 			CUtils::dump(1U, title, data + 2U, 24U);
+			publishMQTTData(data + 2U, 24U, "network", "1/1");
 		}
 
 
@@ -2011,7 +2027,7 @@ void CDMRSlot::writeQueueNet(const unsigned char *data)
 	m_queue.addData(data, len);
 }
 
-void CDMRSlot::init(unsigned int colorCode, bool embeddedLCOnly, bool dumpTAData, unsigned int callHang, CModem* modem, CDMRNetwork* network, bool duplex, CDMRLookup* lookup, CRSSIInterpolator* rssiMapper, unsigned int jitter, DMR_OVCM ovcm, bool protect)
+void CDMRSlot::init(unsigned int colorCode, bool embeddedLCOnly, bool dumpTAData, unsigned int callHang, CModem* modem, CDMRNetwork* network, bool duplex, CDMRLookup* lookup, CRSSIInterpolator* rssiMapper, unsigned int jitter, DMR_OVCM ovcm, bool protect, bool mqttVoice, bool mqttData)
 {
 	assert(modem != nullptr);
 	assert(lookup != nullptr);
@@ -2027,6 +2043,8 @@ void CDMRSlot::init(unsigned int colorCode, bool embeddedLCOnly, bool dumpTAData
 	m_hangCount      = callHang * 17U;
 	m_ovcm           = ovcm;
 	m_protect        = protect;
+	m_mqttVoice      = mqttVoice;
+	m_mqttData       = mqttData;
 
 	m_rssiMapper     = rssiMapper;
 
@@ -2520,6 +2538,70 @@ void CDMRSlot::writeJSON(nlohmann::json& json, const char* source, const char* a
 	json["group"]     = grp ? "yes" : "no";
 
 	json["src_info"] = srcInfo;
+}
+
+std::string CDMRSlot::base64Encode(const unsigned char* data, unsigned int length)
+{
+	static const char TABLE[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+	std::string result;
+	result.reserve(((length + 2U) / 3U) * 4U);
+
+	for (unsigned int i = 0U; i < length; i += 3U) {
+		unsigned int b = (data[i] & 0xFFU) << 16U;
+		if (i + 1U < length)
+			b |= (data[i + 1U] & 0xFFU) << 8U;
+		if (i + 2U < length)
+			b |= (data[i + 2U] & 0xFFU);
+
+		result += TABLE[(b >> 18U) & 0x3FU];
+		result += TABLE[(b >> 12U) & 0x3FU];
+		result += (i + 1U < length) ? TABLE[(b >> 6U) & 0x3FU] : '=';
+		result += (i + 2U < length) ? TABLE[b & 0x3FU] : '=';
+	}
+
+	return result;
+}
+
+void CDMRSlot::publishMQTTVoice(const unsigned char* data, unsigned int length, const char* source, unsigned char seqNo)
+{
+	assert(data != nullptr);
+	assert(source != nullptr);
+
+	if (!m_mqttVoice)
+		return;
+
+	nlohmann::json json;
+
+	json["timestamp"] = CUtils::createTimestamp();
+	json["type"]      = "voice";
+	json["slot"]      = int(m_slotNo);
+	json["source"]    = source;
+	json["sequence"]  = int(seqNo);
+	json["data"]      = base64Encode(data, length);
+
+	WriteJSON("DMR", json);
+}
+
+void CDMRSlot::publishMQTTData(const unsigned char* data, unsigned int length, const char* source, const char* rate)
+{
+	assert(data != nullptr);
+	assert(source != nullptr);
+	assert(rate != nullptr);
+
+	if (!m_mqttData)
+		return;
+
+	nlohmann::json json;
+
+	json["timestamp"] = CUtils::createTimestamp();
+	json["type"]      = "data";
+	json["slot"]      = int(m_slotNo);
+	json["source"]    = source;
+	json["rate"]      = rate;
+	json["data"]      = base64Encode(data, length);
+
+	WriteJSON("DMR", json);
 }
 
 #endif

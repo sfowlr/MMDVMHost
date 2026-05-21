@@ -65,7 +65,7 @@ public:
 
 	void enable(bool enabled);
 
-	static void init(unsigned int colorCode, bool embeddedLCOnly, bool dumpTAData, unsigned int callHang, CModem* modem, CDMRNetwork* network, bool duplex, CDMRLookup* lookup, CRSSIInterpolator* rssiMapper, unsigned int jitter, DMR_OVCM ovcm, bool protect);
+	static void init(unsigned int colorCode, bool embeddedLCOnly, bool dumpTAData, unsigned int callHang, CModem* modem, CDMRNetwork* network, bool duplex, CDMRLookup* lookup, CRSSIInterpolator* rssiMapper, unsigned int jitter, DMR_OVCM ovcm, bool protect, bool mqttVoice, bool mqttData);
 
 private:
 	unsigned int               m_slotNo;
@@ -131,6 +131,8 @@ private:
 	static unsigned int        m_hangCount;
 	static DMR_OVCM            m_ovcm;
 	static bool                m_protect;
+	static bool                m_mqttVoice;
+	static bool                m_mqttData;
 
 	static CRSSIInterpolator*  m_rssiMapper;
 
@@ -180,6 +182,11 @@ private:
 
 	void writeJSON(nlohmann::json& json, const char* action);
 	void writeJSON(nlohmann::json& json, const char* source, const char* action, unsigned int srcId, const std::string& srcInfo, bool grp, unsigned int dstId);
+
+	void publishMQTTVoice(const unsigned char* data, unsigned int length, const char* source, unsigned char seqNo);
+	void publishMQTTData(const unsigned char* data, unsigned int length, const char* source, const char* rate);
+
+	static std::string base64Encode(const unsigned char* data, unsigned int length);
 };
 
 #endif

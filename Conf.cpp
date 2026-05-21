@@ -200,6 +200,8 @@ m_dmrModeHang(10U),
 #if defined(USE_DMR)
 m_dmrOVCM(DMR_OVCM::OFF),
 m_dmrProtect(false),
+m_dmrMQTTVoice(false),
+m_dmrMQTTData(false),
 #endif
 #if defined(USE_YSF)
 m_fusionEnabled(false),
@@ -812,6 +814,10 @@ bool CConf::read()
 				}
 			} else if (::strcmp(key, "Protect") == 0)
 				m_dmrProtect = ::atoi(value) == 1;
+			else if (::strcmp(key, "MQTTVoice") == 0)
+				m_dmrMQTTVoice = ::atoi(value) == 1;
+			else if (::strcmp(key, "MQTTData") == 0)
+				m_dmrMQTTData = ::atoi(value) == 1;
 #endif
 #if defined(USE_YSF)
 		} else if (section == SECTION::FUSION) {
@@ -1616,6 +1622,16 @@ DMR_OVCM CConf::getDMROVCM() const
 bool CConf::getDMRProtect() const
 {
 	return m_dmrProtect;
+}
+
+bool CConf::getDMRMQTTVoice() const
+{
+	return m_dmrMQTTVoice;
+}
+
+bool CConf::getDMRMQTTData() const
+{
+	return m_dmrMQTTData;
 }
 #endif
 

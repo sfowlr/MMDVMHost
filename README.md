@@ -315,6 +315,8 @@ CallHang=3              # DMR call hang time in seconds
 TXHang=4                # DMR TX hang time in seconds
 # ModeHang=10           # Override mode hang time for DMR
 # OVCM=0               # Over-the-air Voice Channel Mode: 0=off, 1=RX, 2=TX, 3=both, 4=force off
+# MQTTVoice=0           # Publish AMBE voice frames (base64) to MQTT after FEC
+# MQTTData=0            # Publish data payloads (base64) to MQTT after FEC
 ```
 
 DMR operates in 2-slot TDMA mode. In duplex mode, both slots are active simultaneously. Access control supports blacklists, whitelists, prefix filtering, and per-slot talkgroup whitelists via `CDMRAccessControl`.
@@ -1047,6 +1049,38 @@ CSBK descriptions: `"Unit to Unit Voice Service Request"`, `"Unit to Unit Voice 
 | `rssi` | object | End/lost (RF, when available) | `{min, max, ave}` in dBm |
 | `frames` | int | Data start | Number of data blocks |
 | `csbk_desc` | string | CSBK events | Human-readable CSBK description |
+
+**AMBE voice frame (when `MQTTVoice=1`):**
+```json
+{
+  "DMR": {
+    "timestamp": "2025-03-15T14:22:01.345",
+    "type": "voice",
+    "slot": 1,
+    "source": "rf",
+    "sequence": 0,
+    "data": "B5dV/X3fdf9w..."
+  }
+}
+```
+
+Published for every voice frame after FEC correction. The `data` field contains the full 33-byte DMR frame (including AMBE payload) as base64. `sequence` is 0 for sync frames, 1-5 for voice frames. `source` is `"rf"` or `"network"`.
+
+**Data payload (when `MQTTData=1`):**
+```json
+{
+  "DMR": {
+    "timestamp": "2025-03-15T14:22:01.345",
+    "type": "data",
+    "slot": 1,
+    "source": "rf",
+    "rate": "1/2",
+    "data": "AQIDBAU..."
+  }
+}
+```
+
+Published for every data block after FEC decoding. The `data` field is the decoded payload as base64: 12 bytes for rate 1/2 (BPTC), 18 bytes for rate 3/4 (trellis), or 24 bytes for rate 1/1 (unprotected). `rate` is `"1/2"`, `"3/4"`, or `"1/1"`.
 
 #### `D-Star` - D-Star Activity
 
