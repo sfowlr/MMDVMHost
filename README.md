@@ -78,11 +78,29 @@ sudo apt-get install build-essential libmosquitto-dev nlohmann-json3-dev
 
 ## Building
 
+### Linux
+
 ```bash
 git clone https://github.com/g4klx/MMDVMHost.git
 cd MMDVMHost
 make
 ```
+
+### macOS
+
+Install dependencies via Homebrew:
+
+```bash
+brew install mosquitto nlohmann-json
+```
+
+Then build normally:
+
+```bash
+make
+```
+
+The Makefile auto-detects macOS via `uname -s` and adjusts include/library paths for Homebrew (both `/usr/local` and `/opt/homebrew` for Apple Silicon).
 
 The build auto-detects the git revision and embeds it in the binary via `GitVersion.h`.
 
