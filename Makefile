@@ -2,9 +2,18 @@
 
 CC      = cc
 CXX     = c++
+
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Darwin)
+CFLAGS  = -g -O3 -Wall -std=c++17 -pthread -MMD -MD -I/usr/local/include -I/opt/homebrew/include -I/opt/homebrew/opt/mosquitto/include -I/opt/homebrew/opt/nlohmann-json/include
+LIBS    = -lpthread -lmosquitto
+LDFLAGS = -g -L/usr/local/lib -L/opt/homebrew/lib -L/opt/homebrew/opt/mosquitto/lib
+else
 CFLAGS  = -g -O3 -Wall -std=c++17 -Wno-psabi -pthread -MMD -MD -I/usr/local/include
 LIBS    = -lpthread -lutil -lmosquitto
 LDFLAGS = -g -L/usr/local/lib
+endif
 
 SRCS = $(wildcard *.cpp)
 OBJS = $(SRCS:.cpp=.o)
