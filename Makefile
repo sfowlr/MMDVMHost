@@ -13,6 +13,11 @@ else
 CFLAGS  = -g -O3 -Wall -std=c++17 -Wno-psabi -pthread -MMD -MD -I/usr/local/include
 LIBS    = -lpthread -lutil -lmosquitto
 LDFLAGS = -g -L/usr/local/lib
+# Auto-detect SCTP support on Linux
+ifneq ($(wildcard /usr/include/netinet/sctp.h),)
+CFLAGS += -DHAS_SCTP
+LIBS   += -lsctp
+endif
 endif
 
 SRCS = $(wildcard *.cpp)

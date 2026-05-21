@@ -302,6 +302,10 @@ m_dmrNetworkSlot1(true),
 m_dmrNetworkSlot2(true),
 #endif
 m_dmrNetworkModeHang(3U),
+m_dmrNetworkProtocol("UDP"),
+m_dmrNetworkSCTPHeartbeat(10000U),
+m_dmrNetworkSCTPMaxRetransmit(3U),
+m_dmrNetworkSCTPTTL(0U),
 #if defined(USE_YSF)
 m_fusionNetworkEnabled(false),
 m_fusionNetworkLocalAddress(),
@@ -1007,6 +1011,14 @@ bool CConf::read()
 				m_dmrNetworkSlot2 = ::atoi(value) == 1;
 			else if (::strcmp(key, "ModeHang") == 0)
 				m_dmrNetworkModeHang = (unsigned int)::atoi(value);
+			else if (::strcmp(key, "Protocol") == 0)
+				m_dmrNetworkProtocol = value;
+			else if (::strcmp(key, "SCTPHeartbeat") == 0)
+				m_dmrNetworkSCTPHeartbeat = (unsigned int)::atoi(value);
+			else if (::strcmp(key, "SCTPMaxRetransmit") == 0)
+				m_dmrNetworkSCTPMaxRetransmit = (unsigned int)::atoi(value);
+			else if (::strcmp(key, "SCTPTTL") == 0)
+				m_dmrNetworkSCTPTTL = (unsigned int)::atoi(value);
 #endif
 #if defined(USE_YSF)
 		} else if (section == SECTION::FUSION_NETWORK) {
@@ -2034,6 +2046,26 @@ bool CConf::getDMRNetworkSlot1() const
 bool CConf::getDMRNetworkSlot2() const
 {
 	return m_dmrNetworkSlot2;
+}
+
+std::string CConf::getDMRNetworkProtocol() const
+{
+	return m_dmrNetworkProtocol;
+}
+
+unsigned int CConf::getDMRNetworkSCTPHeartbeat() const
+{
+	return m_dmrNetworkSCTPHeartbeat;
+}
+
+unsigned int CConf::getDMRNetworkSCTPMaxRetransmit() const
+{
+	return m_dmrNetworkSCTPMaxRetransmit;
+}
+
+unsigned int CConf::getDMRNetworkSCTPTTL() const
+{
+	return m_dmrNetworkSCTPTTL;
 }
 #endif
 

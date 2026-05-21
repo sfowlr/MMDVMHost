@@ -66,6 +66,7 @@ The DVMega supports D-Star, DMR, and System Fusion.
   - `libutil` - login utilities (Linux only)
   - `libmosquitto` - Eclipse Mosquitto MQTT client library
   - `nlohmann/json` - JSON for Modern C++ (header-only)
+  - `libsctp` - SCTP networking (Linux only, optional — enables SCTP transport for DMR)
 - **Hardware**: MMDVM-compatible modem connected via UART, I2C, or UDP
 
 ## Building
@@ -77,6 +78,9 @@ Install dependencies, then build:
 ```bash
 # Debian/Ubuntu/Raspberry Pi OS
 sudo apt-get install build-essential libmosquitto-dev nlohmann-json3-dev
+
+# Optional: for SCTP transport support (DMR)
+sudo apt-get install libsctp-dev
 
 git clone https://github.com/g4klx/MMDVMHost.git
 cd MMDVMHost
@@ -96,6 +100,8 @@ make
 ```
 
 The Makefile auto-detects macOS via `uname -s` and adjusts include/library paths for Homebrew (both `/usr/local` and `/opt/homebrew` for Apple Silicon).
+
+On Linux, the Makefile automatically detects if `libsctp-dev` is installed and enables SCTP support (`-DHAS_SCTP`). No manual flags are needed.
 
 ### Windows (Visual Studio 2022)
 
@@ -474,7 +480,7 @@ FM audio processing includes configurable IIR pre-emphasis and de-emphasis filte
 
 ### Network Sections
 
-Each mode has a corresponding network section for gateway connectivity. All use UDP:
+Each mode has a corresponding network section for gateway connectivity. Most use UDP; the DMR network also supports optional SCTP transport (Linux only):
 
 ```ini
 [D-Star Network]
@@ -495,9 +501,25 @@ GatewayPort=62031
 Jitter=360              # Jitter buffer size in ms
 Slot1=1                 # 1=enable slot 1 networking
 Slot2=1                 # 1=enable slot 2 networking
+Protocol=UDP            # "UDP" (default) or "SCTP" (Linux only, requires libsctp-dev)
+# SCTPHeartbeat=10000   # SCTP heartbeat interval in ms (default 10000)
+# SCTPMaxRetransmit=3   # SCTP max retransmissions before association failure (default 3)
+# SCTPTTL=0             # SCTP PR-SCTP TTL in ms; 0=fully reliable (default 0). Should be < Jitter
 # ModeHang=3
 Debug=0
+```
 
+When `Protocol=SCTP` is set, the DMR network uses an SCTP association instead of UDP datagrams. SCTP provides ordered delivery (compensating for the lack of application-level reordering), built-in heartbeat monitoring for faster master disconnect detection, and optional partial reliability.
+
+**SCTP tuning parameters** (only apply when `Protocol=SCTP`):
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `SCTPHeartbeat` | 10000 | Heartbeat probe interval in ms. Lower values detect master failure faster. |
+| `SCTPMaxRetransmit` | 3 | Failed retransmissions before the association is declared dead. |
+| `SCTPTTL` | 0 | PR-SCTP timed reliability TTL in ms. When non-zero, packets that cannot be delivered within this time are dropped instead of retransmitted. Set this **below** the `Jitter` value (e.g., `SCTPTTL=200` with `Jitter=360`) so the jitter buffer can absorb the gap while stale retransmits are avoided. A value of 0 means fully reliable delivery. |
+
+```ini
 [System Fusion Network]
 Enable=0
 LocalAddress=127.0.0.1

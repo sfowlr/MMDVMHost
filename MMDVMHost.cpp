@@ -1811,19 +1811,39 @@ bool CMMDVMHost::createDMRNetwork()
 	bool slot1           = m_conf.getDMRNetworkSlot1();
 	bool slot2           = m_conf.getDMRNetworkSlot2();
 	HW_TYPE hwType       = m_modem->getHWType();
-	m_dmrNetModeHang     = m_conf.getDMRNetworkModeHang();
+	std::string protocol  = m_conf.getDMRNetworkProtocol();
+	unsigned int sctpHB   = m_conf.getDMRNetworkSCTPHeartbeat();
+	unsigned int sctpMaxR = m_conf.getDMRNetworkSCTPMaxRetransmit();
+	unsigned int sctpTTL  = m_conf.getDMRNetworkSCTPTTL();
+	m_dmrNetModeHang      = m_conf.getDMRNetworkModeHang();
+
+#if !defined(HAS_SCTP)
+	if (protocol == "SCTP") {
+		LogError("DMR Network Protocol set to SCTP but SCTP support was not compiled in");
+		return false;
+	}
+#endif
+
+	if (protocol == "SCTP" && sctpTTL > 0U && sctpTTL >= jitter)
+		LogWarning("DMR Network SCTPTTL (%ums) should be less than Jitter (%ums) to avoid dropping frames the jitter buffer could still use", sctpTTL, jitter);
 
 	LogInfo("DMR Network Parameters");
 	LogInfo("    Gateway Address: %s", gatewayAddress.c_str());
 	LogInfo("    Gateway Port: %hu", gatewayPort);
 	LogInfo("    Local Address: %s", localAddress.c_str());
 	LogInfo("    Local Port: %hu", localPort);
+	LogInfo("    Protocol: %s", protocol.c_str());
+	if (protocol == "SCTP") {
+		LogInfo("    SCTP Heartbeat: %ums", sctpHB);
+		LogInfo("    SCTP Max Retransmit: %u", sctpMaxR);
+		LogInfo("    SCTP TTL: %ums%s", sctpTTL, sctpTTL == 0U ? " (reliable)" : "");
+	}
 	LogInfo("    Jitter: %ums", jitter);
 	LogInfo("    Slot 1: %s", slot1 ? "enabled" : "disabled");
 	LogInfo("    Slot 2: %s", slot2 ? "enabled" : "disabled");
 	LogInfo("    Mode Hang: %us", m_dmrNetModeHang);
 
-	m_dmrNetwork = new CDMRNetwork(gatewayAddress, gatewayPort, localAddress, localPort, id, m_duplex, VERSION, slot1, slot2, hwType, debug);
+	m_dmrNetwork = new CDMRNetwork(gatewayAddress, gatewayPort, localAddress, localPort, id, m_duplex, VERSION, slot1, slot2, hwType, debug, protocol, sctpHB, sctpMaxR, sctpTTL);
 
 	unsigned int rxFrequency = m_conf.getRXFrequency();
 	unsigned int txFrequency = m_conf.getTXFrequency();

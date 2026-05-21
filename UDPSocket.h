@@ -19,6 +19,8 @@
 #if !defined(UDPSocket_H)
 #define UDPSocket_H
 
+#include "INetSocket.h"
+
 #include <string>
 
 #if !defined(_WIN32) && !defined(_WIN64)
@@ -41,19 +43,19 @@ enum class IPMATCHTYPE {
 	ADDRESS_ONLY
 };
 
-class CUDPSocket {
+class CUDPSocket : public INetSocket {
 public:
 	CUDPSocket(const std::string& address, unsigned short port = 0U);
 	CUDPSocket(unsigned short port = 0U);
-	~CUDPSocket();
+	virtual ~CUDPSocket();
 
 	bool open();
-	bool open(const sockaddr_storage& address);
+	bool open(const sockaddr_storage& address) override;
 
-	int  read(unsigned char* buffer, unsigned int length, sockaddr_storage& address, unsigned int &addressLength);
-	bool write(const unsigned char* buffer, unsigned int length, const sockaddr_storage& address, unsigned int addressLength);
+	int  read(unsigned char* buffer, unsigned int length, sockaddr_storage& address, unsigned int &addressLength) override;
+	bool write(const unsigned char* buffer, unsigned int length, const sockaddr_storage& address, unsigned int addressLength) override;
 
-	void close();
+	void close() override;
 
 	static void startup();
 	static void shutdown();

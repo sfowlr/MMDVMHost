@@ -17,6 +17,9 @@
  */
 
 #include "DMRNetwork.h"
+#if defined(HAS_SCTP)
+#include "SCTPSocket.h"
+#endif
 #include "Utils.h"
 #include "Log.h"
 
@@ -32,7 +35,7 @@ const unsigned int BUFFER_LENGTH = 500U;
 const unsigned int HOMEBREW_DATA_PACKET_LENGTH = 55U;
 
 
-CDMRNetwork::CDMRNetwork(const std::string& address, unsigned short port, const std::string& localAddress, unsigned short localPort, unsigned int id, bool duplex, const char* version, bool slot1, bool slot2, HW_TYPE hwType, bool debug) :
+CDMRNetwork::CDMRNetwork(const std::string& address, unsigned short port, const std::string& localAddress, unsigned short localPort, unsigned int id, bool duplex, const char* version, bool slot1, bool slot2, HW_TYPE hwType, bool debug, const std::string& protocol, unsigned int sctpHeartbeat, unsigned int sctpMaxRetransmit, unsigned int sctpTTL) :
 m_addressStr(address),
 m_addr(),
 m_addrLen(0U),
@@ -41,7 +44,7 @@ m_id(nullptr),
 m_duplex(duplex),
 m_version(version),
 m_debug(debug),
-m_socket(localAddress, localPort),
+m_socket(nullptr),
 m_enabled(false),
 m_slot1(slot1),
 m_slot2(slot2),
@@ -61,6 +64,17 @@ m_pingTimer(1000U, 10U)
 	assert(!address.empty());
 	assert(port > 0U);
 	assert(id > 1000U);
+
+#if defined(HAS_SCTP)
+	if (protocol == "SCTP") {
+		CSCTPSocket* sctp = new CSCTPSocket(localAddress, localPort);
+		sctp->setHeartbeat(sctpHeartbeat);
+		sctp->setMaxRetransmit(sctpMaxRetransmit);
+		sctp->setTTL(sctpTTL);
+		m_socket = sctp;
+	} else
+#endif
+		m_socket = new CUDPSocket(localAddress, localPort);
 
 	if (CUDPSocket::lookup(m_addressStr, m_port, m_addr, m_addrLen) != 0)
 		m_addrLen = 0U;
@@ -85,6 +99,7 @@ m_pingTimer(1000U, 10U)
 
 CDMRNetwork::~CDMRNetwork()
 {
+	delete   m_socket;
 	delete[] m_buffer;
 	delete[] m_streamId;
 	delete[] m_id;
@@ -108,7 +123,7 @@ bool CDMRNetwork::open()
 
 	LogMessage("DMR, Opening DMR Network");
 
-	bool ret = m_socket.open(m_addr);
+	bool ret = m_socket->open(m_addr);
 	if (ret)
 		m_pingTimer.start();
 
@@ -293,7 +308,7 @@ void CDMRNetwork::close(bool sayGoodbye)
 {
 	LogMessage("DMR, Closing DMR Network");
 
-	m_socket.close();
+	m_socket->close();
 }
 
 void CDMRNetwork::clock(unsigned int ms)
@@ -306,7 +321,7 @@ void CDMRNetwork::clock(unsigned int ms)
 
 	sockaddr_storage address;
 	unsigned int addrLen;
-	int length = m_socket.read(m_buffer, BUFFER_LENGTH, address, addrLen);
+	int length = m_socket->read(m_buffer, BUFFER_LENGTH, address, addrLen);
 	if (length <= 0)
 		return;
 
@@ -437,7 +452,7 @@ bool CDMRNetwork::write(const unsigned char* data, unsigned int length)
 	if (m_debug)
 		CUtils::dump(1U, "DMR Network Transmitted", data, length);
 
-	bool ret = m_socket.write(data, length, m_addr, m_addrLen);
+	bool ret = m_socket->write(data, length, m_addr, m_addrLen);
 	if (!ret) {
 		LogError("DMR, socket error when writing to the DMR Network");
 		return false;

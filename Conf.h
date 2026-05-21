@@ -280,6 +280,10 @@ public:
 	bool         getDMRNetworkSlot1() const;
 	bool         getDMRNetworkSlot2() const;
 	unsigned int getDMRNetworkModeHang() const;
+	std::string  getDMRNetworkProtocol() const;
+	unsigned int getDMRNetworkSCTPHeartbeat() const;
+	unsigned int getDMRNetworkSCTPMaxRetransmit() const;
+	unsigned int getDMRNetworkSCTPTTL() const;
 #endif
 
 #if defined(USE_YSF)
@@ -580,6 +584,10 @@ private:
 	bool         m_dmrNetworkSlot2;
 #endif
 	unsigned int m_dmrNetworkModeHang;
+	std::string  m_dmrNetworkProtocol;
+	unsigned int m_dmrNetworkSCTPHeartbeat;
+	unsigned int m_dmrNetworkSCTPMaxRetransmit;
+	unsigned int m_dmrNetworkSCTPTTL;
 
 #if defined(USE_YSF)
 	bool         m_fusionNetworkEnabled;

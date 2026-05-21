@@ -19,6 +19,7 @@
 #if !defined(DMRNetwork_H)
 #define	DMRNetwork_H
 
+#include "INetSocket.h"
 #include "UDPSocket.h"
 #include "Timer.h"
 #include "RingBuffer.h"
@@ -34,7 +35,7 @@
 class CDMRNetwork
 {
 public:
-	CDMRNetwork(const std::string& gatewayAddress, unsigned short gatewayPort, const std::string& localAddress, unsigned short localPort, unsigned int id, bool duplex, const char* version, bool slot1, bool slot2, HW_TYPE hwType, bool debug);
+	CDMRNetwork(const std::string& gatewayAddress, unsigned short gatewayPort, const std::string& localAddress, unsigned short localPort, unsigned int id, bool duplex, const char* version, bool slot1, bool slot2, HW_TYPE hwType, bool debug, const std::string& protocol = "UDP", unsigned int sctpHeartbeat = 0U, unsigned int sctpMaxRetransmit = 0U, unsigned int sctpTTL = 0U);
 	~CDMRNetwork();
 
 	void setConfig(const std::string& callsign, unsigned int rxFrequency, unsigned int txFrequency, unsigned int power, unsigned int colorCode);
@@ -68,7 +69,7 @@ private:
 	bool             m_duplex;
 	const char*      m_version;
 	bool             m_debug;
-	CUDPSocket       m_socket;
+	INetSocket*      m_socket;
 	bool             m_enabled;
 	bool             m_slot1;
 	bool             m_slot2;
