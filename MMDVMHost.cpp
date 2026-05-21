@@ -612,6 +612,7 @@ int CMMDVMHost::run()
 		unsigned int id             = m_conf.getDMRId();
 		unsigned int colorCode      = m_conf.getDMRColorCode();
 		bool selfOnly               = m_conf.getDMRSelfOnly();
+		unsigned int minSrcId       = m_conf.getDMRMinSrcId();
 		bool embeddedLCOnly         = m_conf.getDMREmbeddedLCOnly();
 		bool dumpTAData             = m_conf.getDMRDumpTAData();
 		std::vector<unsigned int> prefixes  = m_conf.getDMRPrefixes();
@@ -644,6 +645,7 @@ int CMMDVMHost::run()
 		LogInfo("    Id: %u", id);
 		LogInfo("    Color Code: %u", colorCode);
 		LogInfo("    Self Only: %s", selfOnly ? "yes" : "no");
+		LogInfo("    Min Src Id: %u", minSrcId);
 		LogInfo("    Embedded LC Only: %s", embeddedLCOnly ? "yes" : "no");
 		LogInfo("    Dump Talker Alias Data: %s", dumpTAData ? "yes" : "no");
 		LogInfo("    Prefixes: %u", prefixes.size());
@@ -707,7 +709,7 @@ int CMMDVMHost::run()
 				break;
 		}
 
-		m_dmr = new CDMRControl(id, colorCode, callHang, selfOnly, embeddedLCOnly, dumpTAData, prefixes, blackList, whiteList, slot1TGWhiteList, slot2TGWhiteList, m_timeout, m_modem, m_dmrNetwork, m_duplex, m_dmrLookup, rssi, jitter, ovcm, protect, mqttVoice, mqttData);
+		m_dmr = new CDMRControl(id, colorCode, callHang, selfOnly, minSrcId, embeddedLCOnly, dumpTAData, prefixes, blackList, whiteList, slot1TGWhiteList, slot2TGWhiteList, m_timeout, m_modem, m_dmrNetwork, m_duplex, m_dmrLookup, rssi, jitter, ovcm, protect, mqttVoice, mqttData);
 
 		m_dmrTXTimer.setTimeout(txHang);
 	}

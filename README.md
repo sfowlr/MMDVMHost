@@ -306,6 +306,7 @@ BeaconInterval=60       # Beacon interval in seconds
 BeaconDuration=3        # Beacon duration in seconds
 ColorCode=1             # DMR color code (0-15)
 SelfOnly=0              # 1=only accept own ID
+# MinSrcId=10000        # Minimum allowed source DMR ID (default 10000)
 EmbeddedLCOnly=0        # 1=only accept embedded link control
 DumpTAData=1            # 1=display talker alias data
 # Prefixes=234,235      # Allowed DMR ID prefixes

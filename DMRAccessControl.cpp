@@ -36,8 +36,9 @@ std::vector<unsigned int> CDMRAccessControl::m_slot2TGWhiteList;
 bool CDMRAccessControl::m_selfOnly = false;
 
 unsigned int CDMRAccessControl::m_id = 0U;
+unsigned int CDMRAccessControl::m_minSrcId = 10000U;
 
-void CDMRAccessControl::init(const std::vector<unsigned int>& blacklist, const std::vector<unsigned int>& whitelist, const std::vector<unsigned int>& slot1TGWhitelist, const std::vector<unsigned int>& slot2TGWhitelist, bool selfOnly, const std::vector<unsigned int>& prefixes, unsigned int id)
+void CDMRAccessControl::init(const std::vector<unsigned int>& blacklist, const std::vector<unsigned int>& whitelist, const std::vector<unsigned int>& slot1TGWhitelist, const std::vector<unsigned int>& slot2TGWhitelist, bool selfOnly, const std::vector<unsigned int>& prefixes, unsigned int id, unsigned int minSrcId)
 {
 	m_slot1TGWhiteList = slot1TGWhitelist;
 	m_slot2TGWhiteList = slot2TGWhitelist;
@@ -46,6 +47,7 @@ void CDMRAccessControl::init(const std::vector<unsigned int>& blacklist, const s
 	m_selfOnly         = selfOnly;
 	m_prefixes         = prefixes;
 	m_id               = id;
+	m_minSrcId         = minSrcId;
 }
  
 bool CDMRAccessControl::validateSrcId(unsigned int id)
@@ -60,6 +62,9 @@ bool CDMRAccessControl::validateSrcId(unsigned int id)
 	}	
 
 	if (std::find(m_blackList.begin(), m_blackList.end(), id) != m_blackList.end())
+		return false;
+
+	if (id < m_minSrcId)
 		return false;
 
 	unsigned int prefix = id / 10000U;

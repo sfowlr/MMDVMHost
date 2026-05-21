@@ -186,6 +186,7 @@ m_dmrId(0U),
 #if defined(USE_DMR)
 m_dmrColorCode(2U),
 m_dmrSelfOnly(false),
+m_dmrMinSrcId(10000U),
 m_dmrEmbeddedLCOnly(false),
 m_dmrDumpTAData(true),
 m_dmrPrefixes(),
@@ -744,6 +745,8 @@ bool CConf::read()
 				m_dmrColorCode = (unsigned int)::atoi(value);
 			else if (::strcmp(key, "SelfOnly") == 0)
 				m_dmrSelfOnly = ::atoi(value) == 1;
+			else if (::strcmp(key, "MinSrcId") == 0)
+				m_dmrMinSrcId = (unsigned int)::atoi(value);
 			else if (::strcmp(key, "EmbeddedLCOnly") == 0)
 				m_dmrEmbeddedLCOnly = ::atoi(value) == 1;
 			else if (::strcmp(key, "DumpTAData") == 0)
@@ -1562,6 +1565,11 @@ unsigned int CConf::getDMRColorCode() const
 bool CConf::getDMRSelfOnly() const
 {
 	return m_dmrSelfOnly;
+}
+
+unsigned int CConf::getDMRMinSrcId() const
+{
+	return m_dmrMinSrcId;
 }
 
 bool CConf::getDMREmbeddedLCOnly() const
