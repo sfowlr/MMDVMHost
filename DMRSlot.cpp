@@ -231,7 +231,8 @@ bool CDMRSlot::writeModem(unsigned char *data, unsigned int len)
 	if (m_mqttRaw) {
 		unsigned char rawType = dataSync ? (data[1U] & 0x0FU) : (audioSync ? DT_VOICE_SYNC : DT_VOICE);
 		unsigned int n = (dataSync || audioSync) ? 0U : (data[1U] & 0x0FU);
-		bool known = m_rfState != RPT_RF_STATE::LISTENING;
+		// m_rfLC is null in LATE_ENTRY until the embedded LC is decoded, so test it, not the state.
+		bool known = m_rfState != RPT_RF_STATE::LISTENING && m_rfLC != nullptr;
 		if (rawType != DT_IDLE)
 			publishMQTTRaw(data + 2U, rawType, "rf", n, known ? m_rfLC->getSrcId() : 0U, known ? m_rfLC->getDstId() : 0U,
 				known && m_rfLC->getFLCO() == FLCO::GROUP);
