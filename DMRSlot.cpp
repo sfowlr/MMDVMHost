@@ -48,6 +48,7 @@ DMR_OVCM       CDMRSlot::m_ovcm = DMR_OVCM::OFF;
 bool           CDMRSlot::m_protect = false;
 bool           CDMRSlot::m_mqttVoice = false;
 bool           CDMRSlot::m_mqttData = false;
+bool           CDMRSlot::m_mqttRaw = false;
 
 CRSSIInterpolator* CDMRSlot::m_rssiMapper = nullptr;
 
@@ -217,6 +218,15 @@ bool CDMRSlot::writeModem(unsigned char *data, unsigned int len)
 
 	bool dataSync  = (data[1U] & DMR_SYNC_DATA)  == DMR_SYNC_DATA;
 	bool audioSync = (data[1U] & DMR_SYNC_AUDIO) == DMR_SYNC_AUDIO;
+
+	if (m_mqttRaw) {
+		unsigned char rawType = dataSync ? (data[1U] & 0x0FU) : (audioSync ? DT_VOICE_SYNC : DT_VOICE);
+		unsigned int n = (dataSync || audioSync) ? 0U : (data[1U] & 0x0FU);
+		bool known = m_rfState != RPT_RF_STATE::LISTENING;
+		if (rawType != DT_IDLE)
+			publishMQTTRaw(data + 2U, rawType, "rf", n, known ? m_rfLC->getSrcId() : 0U, known ? m_rfLC->getDstId() : 0U,
+				known && m_rfLC->getFLCO() == FLCO::GROUP);
+	}
 
 	if (dataSync) {
 		// Get the type from the packet metadata
@@ -1148,6 +1158,10 @@ void CDMRSlot::writeNetwork(const CDMRData& dmrData)
 	unsigned char data[DMR_FRAME_LENGTH_BYTES + 2U];
 	dmrData.getData(data + 2U);
 
+	if (m_mqttRaw && dataType != DT_IDLE)
+		publishMQTTRaw(data + 2U, dataType, "network", dmrData.getN(), dmrData.getSrcId(), dmrData.getDstId(),
+			dmrData.getFLCO() == FLCO::GROUP);
+
 	if (dataType == DT_VOICE_LC_HEADER) {
 		if (m_netState == RPT_NET_STATE::AUDIO)
 			return;
@@ -2027,7 +2041,7 @@ void CDMRSlot::writeQueueNet(const unsigned char *data)
 	m_queue.addData(data, len);
 }
 
-void CDMRSlot::init(unsigned int colorCode, bool embeddedLCOnly, bool dumpTAData, unsigned int callHang, CModem* modem, CDMRNetwork* network, bool duplex, CDMRLookup* lookup, CRSSIInterpolator* rssiMapper, unsigned int jitter, DMR_OVCM ovcm, bool protect, bool mqttVoice, bool mqttData)
+void CDMRSlot::init(unsigned int colorCode, bool embeddedLCOnly, bool dumpTAData, unsigned int callHang, CModem* modem, CDMRNetwork* network, bool duplex, CDMRLookup* lookup, CRSSIInterpolator* rssiMapper, unsigned int jitter, DMR_OVCM ovcm, bool protect, bool mqttVoice, bool mqttData, bool mqttRaw)
 {
 	assert(modem != nullptr);
 	assert(lookup != nullptr);
@@ -2045,6 +2059,7 @@ void CDMRSlot::init(unsigned int colorCode, bool embeddedLCOnly, bool dumpTAData
 	m_protect        = protect;
 	m_mqttVoice      = mqttVoice;
 	m_mqttData       = mqttData;
+	m_mqttRaw        = mqttRaw;
 
 	m_rssiMapper     = rssiMapper;
 
@@ -2602,6 +2617,53 @@ void CDMRSlot::publishMQTTData(const unsigned char* data, unsigned int length, c
 	json["data"]      = base64Encode(data, length);
 
 	WriteJSON("DMR", json);
+}
+
+static const char* rawTypeName(unsigned char dataType)
+{
+	switch (dataType) {
+	case DT_VOICE_PI_HEADER:    return "voice_pi_header";
+	case DT_VOICE_LC_HEADER:    return "voice_lc_header";
+	case DT_TERMINATOR_WITH_LC: return "terminator";
+	case DT_CSBK:               return "csbk";
+	case DT_DATA_HEADER:        return "data_header";
+	case DT_RATE_12_DATA:       return "rate_1_2";
+	case DT_RATE_34_DATA:       return "rate_3_4";
+	case DT_IDLE:               return "idle";
+	case DT_RATE_1_DATA:        return "rate_1";
+	case DT_VOICE_SYNC:         return "voice_sync";
+	case DT_VOICE:              return "voice";
+	default:                    return "unknown";
+	}
+}
+
+// Publish a received 33-byte burst exactly as it came off the modem / network,
+// before FEC regeneration, to {Name}/raw. For offline decoding of data calls
+// (LRRP, ARS, UDT/NMEA GPS…), CSBKs and embedded LC, which the JSON feed omits.
+void CDMRSlot::publishMQTTRaw(const unsigned char* burst, unsigned char dataType, const char* source, unsigned int n, unsigned int srcId, unsigned int dstId, bool group)
+{
+	assert(burst != nullptr);
+	assert(source != nullptr);
+
+	if (!m_mqttRaw)
+		return;
+
+	nlohmann::json json;
+
+	json["timestamp"] = CUtils::createTimestamp();
+	json["slot"]      = int(m_slotNo);
+	json["source"]    = source;
+	json["type"]      = rawTypeName(dataType);
+	json["dt"]        = int(dataType);
+	json["n"]         = int(n);
+	if (srcId != 0U) {
+		json["src_id"] = int(srcId);
+		json["dst_id"] = int(dstId);
+		json["group"]  = group;
+	}
+	json["data"]      = base64Encode(burst, DMR_FRAME_LENGTH_BYTES);
+
+	WriteJSONTopic("raw", "DMR", json);
 }
 
 #endif

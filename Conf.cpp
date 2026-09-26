@@ -203,6 +203,7 @@ m_dmrOVCM(DMR_OVCM::OFF),
 m_dmrProtect(false),
 m_dmrMQTTVoice(false),
 m_dmrMQTTData(false),
+m_dmrMQTTRaw(false),
 #endif
 #if defined(USE_YSF)
 m_fusionEnabled(false),
@@ -825,6 +826,8 @@ bool CConf::read()
 				m_dmrMQTTVoice = ::atoi(value) == 1;
 			else if (::strcmp(key, "MQTTData") == 0)
 				m_dmrMQTTData = ::atoi(value) == 1;
+			else if (::strcmp(key, "MQTTRaw") == 0)
+				m_dmrMQTTRaw = ::atoi(value) == 1;
 #endif
 #if defined(USE_YSF)
 		} else if (section == SECTION::FUSION) {
@@ -1652,6 +1655,11 @@ bool CConf::getDMRMQTTVoice() const
 bool CConf::getDMRMQTTData() const
 {
 	return m_dmrMQTTData;
+}
+
+bool CConf::getDMRMQTTRaw() const
+{
+	return m_dmrMQTTRaw;
 }
 #endif
 

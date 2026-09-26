@@ -36,5 +36,6 @@ extern void LogInitialise(unsigned int displayLevel, unsigned int mqttLevel);
 extern void LogFinalise();
 
 extern void WriteJSON(const std::string& topLevel, nlohmann::json& json);
+extern void WriteJSONTopic(const std::string& topic, const std::string& topLevel, nlohmann::json& json);
 
 #endif

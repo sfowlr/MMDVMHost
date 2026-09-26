@@ -176,6 +176,7 @@ public:
 	bool         getDMRProtect() const;
 	bool         getDMRMQTTVoice() const;
 	bool         getDMRMQTTData() const;
+	bool         getDMRMQTTRaw() const;
 #endif
 
 #if defined(USE_YSF)
@@ -478,6 +479,7 @@ private:
 	bool         m_dmrProtect;
 	bool         m_dmrMQTTVoice;
 	bool         m_dmrMQTTData;
+	bool         m_dmrMQTTRaw;
 #endif
 
 #if defined(USE_YSF)
