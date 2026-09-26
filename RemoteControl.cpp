@@ -1,5 +1,5 @@
 /*
- *   Copyright (C) 2019,2020,2021,2023,2024,2025 by Jonathan Naylor G4KLX
+ *   Copyright (C) 2019,2020,2021,2023,2024,2025,2026 by Jonathan Naylor G4KLX
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
  */
 
 #include "RemoteControl.h"
-#include "MMDVMHost.h"
+#include "MMDVM-Host.h"
 #include "Log.h"
 
 #include <cstdio>

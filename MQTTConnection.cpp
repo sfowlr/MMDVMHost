@@ -1,5 +1,5 @@
 /*
- *   Copyright (C) 2022,2023,2025 by Jonathan Naylor G4KLX
+ *   Copyright (C) 2022,2023,2025,2026 by Jonathan Naylor G4KLX
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -59,12 +59,12 @@ bool CMQTTConnection::open()
 {
 	char name[50U];
 #if defined(_WIN32) || defined(_WIN64)
-	::sprintf(name, "MMDVMHost.%u", (unsigned)::_getpid());
+	::sprintf(name, "Host.%u", (unsigned)::_getpid());
 #else
-	::sprintf(name, "MMDVMHost.%u", (unsigned)::getpid());
+	::sprintf(name, "Host.%u", (unsigned)::getpid());
 #endif
 
-	::fprintf(stdout, "MMDVMHost (%s) connecting to MQTT as %s\n", m_name.c_str(), name);
+	::fprintf(stdout, "MMDVM-Host (%s) connecting to MQTT as %s\n", m_name.c_str(), name);
 
 	m_mosq = ::mosquitto_new(name, true, this);
 	if (m_mosq == nullptr) {

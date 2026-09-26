@@ -1,5 +1,5 @@
 /*
- *   Copyright (C) 2015-2025 by Jonathan Naylor G4KLX
+ *   Copyright (C) 2015-2026 by Jonathan Naylor G4KLX
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -30,7 +30,6 @@ const int BUFFER_SIZE = 500;
 enum class SECTION {
 	NONE,
 	GENERAL,
-	INFO,
 	LOG,
 	MQTT,
 	CWID,
@@ -47,6 +46,7 @@ enum class SECTION {
 #endif
 #if defined(USE_DMR)
 	DMR,
+	DMR_TRUNKING,
 #endif
 #if defined(USE_YSF)
 	FUSION,
@@ -95,15 +95,6 @@ m_id(0U),
 m_timeout(120U),
 m_duplex(true),
 m_daemon(false),
-m_rxFrequency(0U),
-m_txFrequency(0U),
-m_power(0U),
-m_latitude(0.0F),
-m_longitude(0.0F),
-m_height(0),
-m_location(),
-m_description(),
-m_url(),
 m_logMQTTLevel(0U),
 m_logDisplayLevel(0U),
 m_mqttHost("127.0.0.1"),
@@ -133,6 +124,8 @@ m_modemModemAddress(),
 m_modemModemPort(0U),
 m_modemLocalAddress(),
 m_modemLocalPort(0U),
+m_modemRXFrequency(0U),
+m_modemTXFrequency(0U),
 m_modemRXInvert(false),
 m_modemTXInvert(false),
 m_modemPTTInvert(false),
@@ -204,6 +197,11 @@ m_dmrProtect(false),
 m_dmrMQTTVoice(false),
 m_dmrMQTTData(false),
 m_dmrMQTTRaw(false),
+m_dmrTrunkingEnabled(false),
+m_dmrControlChannel(false),
+m_dmrControlChannelAlternateSlot(false),
+m_dmrSystemCode(0U),
+m_dmrRegistrationRequired(true),
 #endif
 #if defined(USE_YSF)
 m_fusionEnabled(false),
@@ -222,6 +220,7 @@ m_p25NAC(0x293U),
 m_p25SelfOnly(false),
 m_p25OverrideUID(false),
 m_p25RemoteGateway(false),
+m_p25SoftId(false),
 m_p25TXHang(5U),
 #endif
 m_p25ModeHang(10U),
@@ -393,8 +392,6 @@ bool CConf::read()
 		if (buffer[0U] == '[') {
 			if (::strncmp(buffer, "[General]", 9U) == 0)
 				section = SECTION::GENERAL;
-			else if (::strncmp(buffer, "[Info]", 6U) == 0)
-				section = SECTION::INFO;
 			else if (::strncmp(buffer, "[Log]", 5U) == 0)
 				section = SECTION::LOG;
 			else if (::strncmp(buffer, "[MQTT]", 6U) == 0)
@@ -420,6 +417,8 @@ bool CConf::read()
 #if defined(USE_DMR)
 			else if (::strncmp(buffer, "[DMR]", 5U) == 0)
 				section = SECTION::DMR;
+			else if (::strncmp(buffer, "[DMR Trunking]", 14U) == 0)
+				section = SECTION::DMR_TRUNKING;
 #endif
 #if defined(USE_YSF)
 			else if (::strncmp(buffer, "[System Fusion]", 15U) == 0)
@@ -525,25 +524,6 @@ bool CConf::read()
 				m_dstarNetworkModeHang = m_dmrNetworkModeHang = m_fusionNetworkModeHang = m_p25NetworkModeHang = m_nxdnNetworkModeHang = m_fmNetworkModeHang = (unsigned int)::atoi(value);
 			else if (::strcmp(key, "Daemon") == 0)
 				m_daemon = ::atoi(value) == 1;
-		} else if (section == SECTION::INFO) {
-			if (::strcmp(key, "TXFrequency") == 0)
-				m_pocsagFrequency = m_txFrequency = (unsigned int)::atoi(value);
-			else if (::strcmp(key, "RXFrequency") == 0)
-				m_rxFrequency = (unsigned int)::atoi(value);
-			else if (::strcmp(key, "Power") == 0)
-				m_power = (unsigned int)::atoi(value);
-			else if (::strcmp(key, "Latitude") == 0)
-				m_latitude = float(::atof(value));
-			else if (::strcmp(key, "Longitude") == 0)
-				m_longitude = float(::atof(value));
-			else if (::strcmp(key, "Height") == 0)
-				m_height = ::atoi(value);
-			else if (::strcmp(key, "Location") == 0)
-				m_location = value;
-			else if (::strcmp(key, "Description") == 0)
-				m_description = value;
-			else if (::strcmp(key, "URL") == 0)
-				m_url = value;
 		} else if (section == SECTION::LOG) {
 			if (::strcmp(key, "MQTTLevel") == 0)
 				m_logMQTTLevel = (unsigned int)::atoi(value);
@@ -608,6 +588,10 @@ bool CConf::read()
 				m_modemLocalAddress = value;
 			else if (::strcmp(key, "LocalPort") == 0)
 				m_modemLocalPort = (unsigned short)::atoi(value);
+			else if (::strcmp(key, "TXFrequency") == 0)
+				m_pocsagFrequency = m_modemTXFrequency = (unsigned int)::atoi(value);
+			else if (::strcmp(key, "RXFrequency") == 0)
+				m_modemRXFrequency = (unsigned int)::atoi(value);
 			else if (::strcmp(key, "RXInvert") == 0)
 				m_modemRXInvert = ::atoi(value) == 1;
 			else if (::strcmp(key, "TXInvert") == 0)
@@ -828,6 +812,17 @@ bool CConf::read()
 				m_dmrMQTTData = ::atoi(value) == 1;
 			else if (::strcmp(key, "MQTTRaw") == 0)
 				m_dmrMQTTRaw = ::atoi(value) == 1;
+		} else if (section == SECTION::DMR_TRUNKING) {
+			if (::strcmp(key, "Enable") == 0)
+				m_dmrTrunkingEnabled = ::atoi(value) == 1;
+			else if (::strcmp(key, "ControlChannel") == 0)
+				m_dmrControlChannel = ::atoi(value) == 1;
+			else if (::strcmp(key, "ControlChannelAlternateSlot") == 0)
+				m_dmrControlChannelAlternateSlot = ::atoi(value) == 1;
+			else if (::strcmp(key, "SystemCode") == 0)
+				m_dmrSystemCode = (unsigned int)::atoi(value);
+			else if (::strcmp(key, "RegistrationRequired") == 0)
+				m_dmrRegistrationRequired = ::atoi(value) == 1;
 #endif
 #if defined(USE_YSF)
 		} else if (section == SECTION::FUSION) {
@@ -858,6 +853,8 @@ bool CConf::read()
 				m_p25SelfOnly = ::atoi(value) == 1;
 			else if (::strcmp(key, "RemoteGateway") == 0)
 				m_p25RemoteGateway = ::atoi(value) == 1;
+			else if (::strcmp(key, "SoftId") == 0)
+				m_p25SoftId = ::atoi(value) == 1;
 			else if (::strcmp(key, "TXHang") == 0)
 				m_p25TXHang = (unsigned int)::atoi(value);
 			else if (::strcmp(key, "ModeHang") == 0)
@@ -1159,51 +1156,6 @@ bool CConf::getDaemon() const
 	return m_daemon;
 }
 
-unsigned int CConf::getRXFrequency() const
-{
-	return m_rxFrequency;
-}
-
-unsigned int CConf::getTXFrequency() const
-{
-	return m_txFrequency;
-}
-
-unsigned int CConf::getPower() const
-{
-	return m_power;
-}
-
-float CConf::getLatitude() const
-{
-	return m_latitude;
-}
-
-float CConf::getLongitude() const
-{
-	return m_longitude;
-}
-
-int CConf::getHeight() const
-{
-	return m_height;
-}
-
-std::string CConf::getLocation() const
-{
-	return m_location;
-}
-
-std::string CConf::getDescription() const
-{
-	return m_description;
-}
-
-std::string CConf::getURL() const
-{
-	return m_url;
-}
-
 unsigned int CConf::getLogMQTTLevel() const
 {
 	return m_logMQTTLevel;
@@ -1331,6 +1283,16 @@ std::string CConf::getModemLocalAddress() const
 unsigned short CConf::getModemLocalPort() const
 {
 	return m_modemLocalPort;
+}
+
+unsigned int CConf::getModemRXFrequency() const
+{
+	return m_modemRXFrequency;
+}
+
+unsigned int CConf::getModemTXFrequency() const
+{
+	return m_modemTXFrequency;
 }
 
 bool CConf::getModemRXInvert() const
@@ -1552,6 +1514,31 @@ bool CConf::getDMREnabled() const
 	return m_dmrEnabled;
 }
 
+bool CConf::getDMRTrunkingEnabled() const
+{
+	return m_dmrTrunkingEnabled;
+}
+
+bool CConf::getDMRControlChannel() const
+{
+	return m_dmrControlChannel;
+}
+
+bool CConf::getDMRControlChannelAlternateSlot() const
+{
+	return m_dmrControlChannelAlternateSlot;
+}
+
+unsigned int CConf::getDMRSystemCode() const
+{
+	return m_dmrSystemCode;
+}
+
+bool CConf::getDMRRegistrationRequired() const
+{
+	return m_dmrRegistrationRequired;
+}
+
 DMR_BEACONS CConf::getDMRBeacons() const
 {
 	return m_dmrBeacons;
@@ -1724,6 +1711,11 @@ bool CConf::getP25SelfOnly() const
 bool CConf::getP25RemoteGateway() const
 {
 	return m_p25RemoteGateway;
+}
+
+bool CConf::getP25SoftId() const
+{
+	return m_p25SoftId;
 }
 
 unsigned int CConf::getP25TXHang() const

@@ -39,17 +39,6 @@ public:
 	bool         getDuplex() const;
 	bool         getDaemon() const;
 
-	// The Info section
-	unsigned int getRXFrequency() const;
-	unsigned int getTXFrequency() const;
-	unsigned int getPower() const;
-	float        getLatitude() const;
-	float        getLongitude() const;
-	int          getHeight() const;
-	std::string  getLocation() const;
-	std::string  getDescription() const;
-	std::string  getURL() const;
-
 	// The Log section
 	unsigned int getLogMQTTLevel() const;
 	unsigned int getLogDisplayLevel() const;
@@ -90,6 +79,8 @@ public:
 	unsigned short getModemModemPort() const;
 	std::string  getModemLocalAddress() const;
 	unsigned short getModemLocalPort() const;
+	unsigned int getModemRXFrequency() const;
+	unsigned int getModemTXFrequency() const;
 	bool         getModemRXInvert() const;
 	bool         getModemTXInvert() const;
 	bool         getModemPTTInvert() const;
@@ -177,6 +168,11 @@ public:
 	bool         getDMRMQTTVoice() const;
 	bool         getDMRMQTTData() const;
 	bool         getDMRMQTTRaw() const;
+	bool         getDMRTrunkingEnabled() const;
+	bool         getDMRControlChannel() const;
+	bool         getDMRControlChannelAlternateSlot() const;
+	unsigned int getDMRSystemCode() const;
+	bool         getDMRRegistrationRequired() const;
 #endif
 
 #if defined(USE_YSF)
@@ -197,6 +193,7 @@ public:
 	bool         getP25SelfOnly() const;
 	bool         getP25OverrideUID() const;
 	bool         getP25RemoteGateway() const;
+	bool         getP25SoftId() const;
 	unsigned int getP25TXHang() const;
 	unsigned int getP25ModeHang() const;
 #endif
@@ -362,16 +359,6 @@ private:
 	bool         m_duplex;
 	bool         m_daemon;
 
-	unsigned int m_rxFrequency;
-	unsigned int m_txFrequency;
-	unsigned int m_power;
-	float        m_latitude;
-	float        m_longitude;
-	int          m_height;
-	std::string  m_location;
-	std::string  m_description;
-	std::string  m_url;
-
 	unsigned int m_logMQTTLevel;
 	unsigned int m_logDisplayLevel;
 
@@ -406,6 +393,8 @@ private:
 	unsigned short m_modemModemPort;
 	std::string  m_modemLocalAddress;
 	unsigned short m_modemLocalPort;
+	unsigned int m_modemRXFrequency;
+	unsigned int m_modemTXFrequency;
 	bool         m_modemRXInvert;
 	bool         m_modemTXInvert;
 	bool         m_modemPTTInvert;
@@ -480,6 +469,11 @@ private:
 	bool         m_dmrMQTTVoice;
 	bool         m_dmrMQTTData;
 	bool         m_dmrMQTTRaw;
+	bool         m_dmrTrunkingEnabled;
+	bool         m_dmrControlChannel;
+	bool         m_dmrControlChannelAlternateSlot;
+	unsigned int m_dmrSystemCode;
+	bool         m_dmrRegistrationRequired;
 #endif
 
 #if defined(USE_YSF)
@@ -500,6 +494,7 @@ private:
 	bool         m_p25SelfOnly;
 	bool         m_p25OverrideUID;
 	bool         m_p25RemoteGateway;
+	bool         m_p25SoftId;
 	unsigned int m_p25TXHang;
 #endif
 	unsigned int m_p25ModeHang;

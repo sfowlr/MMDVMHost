@@ -1,5 +1,5 @@
 /*
- *   Copyright (C) 2011-2018,2020,2021,2023,2025 by Jonathan Naylor G4KLX
+ *   Copyright (C) 2011-2018,2020,2021,2023,2025,2026 by Jonathan Naylor G4KLX
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -23,6 +23,9 @@
 #include "RingBuffer.h"
 #include "Defines.h"
 #include "Timer.h"
+#include "DMRCSBK.h"
+#include "DMRSlotType.h"
+#include "Sync.h"
 
 #include <string>
 
@@ -52,6 +55,7 @@ public:
 
 #if defined(USE_DMR)
 	void setDMRParams(unsigned int colorCode);
+	void setDMRTrunkingParams(bool controlChannel);
 #endif
 #if defined(USE_YSF)
 	void setYSFParams(bool loDev, unsigned int txHang);
@@ -179,7 +183,9 @@ public:
 
 #if defined(USE_DMR)
 	bool writeDMRStart(bool tx);
-	bool writeDMRShortLC(const unsigned char* lc);
+	bool writeDMRAloha(unsigned int systemCode, bool registrationRequired, bool alternateSlot);
+	void setDMRShortLC(unsigned int systemCode, bool isControlChannel, bool registrationRequired);
+	bool writeDMRShortLC(const unsigned char* lc, bool control);
 	bool writeDMRAbort(unsigned int slotNo);
 #endif
 	bool writeTransparentData(const unsigned char* data, unsigned int length);
@@ -193,11 +199,14 @@ public:
 
 	bool sendCWId(const std::string& callsign);
 
-	HW_TYPE getHWType() const;
-
 	void clock(unsigned int ms);
 
 	void close();
+
+#if defined(USE_DMR)
+	bool getDMRTrunkingEnabled() const;
+	bool getDMRControlChannel() const;
+#endif
 
 private:
 	unsigned int               m_protocolVersion;
@@ -259,6 +268,8 @@ private:
 #endif
 #if defined(USE_DMR)
 	bool                       m_dmrEnabled;
+	bool                       m_dmrTrunkingEnabled;
+	bool                       m_dmrControlChannel;
 #endif
 #if defined(USE_YSF)
 	bool                       m_ysfEnabled;
@@ -348,7 +359,6 @@ private:
 	bool                       m_lockout;
 	bool                       m_error;
 	unsigned char              m_mode;
-	HW_TYPE                    m_hwType;
 #if defined(USE_FM)
 	std::string                m_fmCallsign;
 	unsigned int               m_fmCallsignSpeed;
@@ -405,8 +415,8 @@ private:
 	RESP_TYPE_MMDVM getResponse();
 
 	// Added these for buffering serial data from display:
-    unsigned char              m_serialDataBuffer[256];
-    unsigned int               m_serialDataLen;
+    unsigned char m_serialDataBuffer[256];
+    unsigned int  m_serialDataLen;
 };
 
 #endif

@@ -106,7 +106,6 @@ void WriteJSONTopic(const std::string& topic, const std::string& topLevel, nlohm
 
 		top[topLevel] = json;
 
-		// Invalid UTF-8 (e.g. a garbled talker alias) would otherwise throw (upstream 2eb576d).
 		m_mqtt->publish(topic.c_str(), top.dump(-1, ' ', false, nlohmann::json::error_handler_t::ignore));
 	}
 }

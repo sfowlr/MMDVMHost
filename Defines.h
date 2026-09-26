@@ -1,5 +1,5 @@
 /*
- *   Copyright (C) 2015,2016,2017,2018,2020,2021,2023,2025 by Jonathan Naylor G4KLX
+ *   Copyright (C) 2015,2016,2017,2018,2020,2021,2023,2025,2026 by Jonathan Naylor G4KLX
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -50,21 +50,6 @@ const unsigned char TAG_EOT    = 0x03U;
 const unsigned char TAG_RSSI   = 0x04U;
 
 const unsigned int  DSTAR_MODEM_DATA_LEN = 220U;
-
-enum class HW_TYPE {
-	MMDVM,
-	DVMEGA,
-	MMDVM_ZUMSPOT,
-	MMDVM_HS_HAT,
-	MMDVM_HS_DUAL_HAT,
-	NANO_HOTSPOT,
-	NANO_DV,
-	D2RG_MMDVM_HS,
-	MMDVM_HS,
-	OPENGD77_HS,
-	SKYBRIDGE,
-	UNKNOWN
-};
 
 enum class RPT_RF_STATE {
 	LISTENING,

@@ -40,7 +40,7 @@
 
 class CP25Control {
 public:
-	CP25Control(unsigned int nac, unsigned int id, bool selfOly, bool uidOverride, CP25Network* network, unsigned int timeout, bool duplex, CDMRLookup* lookup, bool remoteGateway, CRSSIInterpolator* rssiMapper);
+	CP25Control(unsigned int nac, unsigned int id, bool selfOly, bool uidOverride, CP25Network* network, unsigned int timeout, bool duplex, CDMRLookup* lookup, bool remoteGateway, bool softId, CRSSIInterpolator* rssiMapper);
 	~CP25Control();
 
 	bool writeModem(unsigned char* data, unsigned int len);
@@ -84,6 +84,9 @@ private:
 	CP25Data                   m_netData;
 	CP25LowSpeedData           m_rfLSD;
 	CP25LowSpeedData           m_netLSD;
+	bool                       m_softIdEnabled;
+	unsigned char              m_softId[12U];
+	unsigned int               m_softIdPtr;
 	unsigned char*             m_netLDU1;
 	unsigned char*             m_netLDU2;
 	unsigned char*             m_lastIMBE;
@@ -115,6 +118,9 @@ private:
 	void checkNetLDU2();
 
 	void insertMissingAudio(unsigned char* data);
+
+	void setSoftId(const std::string& text);
+	void addSoftId();
 
 	void createRFHeader();
 
