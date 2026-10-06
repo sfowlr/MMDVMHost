@@ -29,6 +29,7 @@
 #include "AMBEFEC.h"
 #include "DMRSlot.h"
 #include "DMRData.h"
+#include "DMREMB.h"
 #include "Defines.h"
 #include "Timer.h"
 #include "Modem.h"
@@ -65,7 +66,9 @@ public:
 
 	void enable(bool enabled);
 
-	static void init(unsigned int colorCode, bool embeddedLCOnly, bool dumpTAData, unsigned int callHang, CModem* modem, CDMRNetwork* network, bool duplex, CDMRLookup* lookup, CRSSIInterpolator* rssiMapper, unsigned int jitter, DMR_OVCM ovcm, bool protect, bool mqttVoice, bool mqttData);
+	static void init(unsigned int colorCode, bool embeddedLCOnly, bool dumpTAData, unsigned int callHang, CModem* modem, CDMRNetwork* network, bool duplex, CDMRLookup* lookup, CRSSIInterpolator* rssiMapper, unsigned int jitter, DMR_OVCM ovcm, bool protect, bool mqttVoice, bool mqttData, bool mqttRaw);
+
+	void setRCCommand(unsigned int command);
 
 private:
 	unsigned int               m_slotNo;
@@ -133,6 +136,7 @@ private:
 	static bool                m_protect;
 	static bool                m_mqttVoice;
 	static bool                m_mqttData;
+	static bool                m_mqttRaw;
 
 	static CRSSIInterpolator*  m_rssiMapper;
 
@@ -147,6 +151,7 @@ private:
 	static FLCO                m_flco2;
 	static unsigned char       m_id2;
 	static ACTIVITY_TYPE       m_activity2;
+	unsigned int               m_rcCommand;
 
 	void logGPSPosition(const unsigned char* data);
 
@@ -160,6 +165,8 @@ private:
 
 	bool insertSilence(const unsigned char* data, unsigned char seqNo);
 	void insertSilence(unsigned int count);
+
+	void createReverseChannel(unsigned char* data, CDMREMB& emb);
 
 	static void setShortLC(unsigned int slotNo, unsigned int id, FLCO flco = FLCO::GROUP, ACTIVITY_TYPE type = ACTIVITY_TYPE::NONE);
 
@@ -185,6 +192,7 @@ private:
 
 	void publishMQTTVoice(const unsigned char* data, unsigned int length, const char* source, unsigned char seqNo);
 	void publishMQTTData(const unsigned char* data, unsigned int length, const char* source, const char* rate);
+	void publishMQTTRaw(const unsigned char* burst, unsigned char dataType, const char* source, unsigned int n, unsigned int srcId, unsigned int dstId, bool group);
 
 	static std::string base64Encode(const unsigned char* data, unsigned int length);
 };
@@ -192,4 +200,3 @@ private:
 #endif
 
 #endif
-

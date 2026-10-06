@@ -16,7 +16,7 @@
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include "MMDVMHost.h"
+#include "MMDVM-Host.h"
 #include "NXDNKenwoodNetwork.h"
 #include "NXDNIcomNetwork.h"
 #include "RSSIInterpolator.h"
@@ -51,9 +51,9 @@
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
-const char* DEFAULT_INI_FILE = "MMDVMHost.ini";
+const char* DEFAULT_INI_FILE = "MMDVM-Host.ini";
 #else
-const char* DEFAULT_INI_FILE = "/etc/MMDVMHost.ini";
+const char* DEFAULT_INI_FILE = "/etc/MMDVM-Host.ini";
 #endif
 
 static bool m_killed = false;
@@ -85,10 +85,10 @@ int main(int argc, char** argv)
  		for (int currentArg = 1; currentArg < argc; ++currentArg) {
 			std::string arg = argv[currentArg];
 			if ((arg == "-v") || (arg == "--version")) {
-				::fprintf(stdout, "MMDVMHost version %s git #%.7s\n", VERSION, gitversion);
+				::fprintf(stdout, "MMDVM-Host version %s git #%.7s\n", VERSION, gitversion);
 				return 0;
 			} else if (arg.substr(0,1) == "-") {
-				::fprintf(stderr, "Usage: MMDVMHost [-v|--version] [filename]\n");
+				::fprintf(stderr, "Usage: MMDVM-Host [-v|--version] [filename]\n");
 				return 1;
 			} else {
 				iniFile = argv[currentArg];
@@ -118,17 +118,17 @@ int main(int argc, char** argv)
 			case 0:
 				break;
 			case 2:
-				::LogInfo("MMDVMHost-%s exited on receipt of SIGINT", VERSION);
+				::LogInfo("MMDVM-Host-%s exited on receipt of SIGINT", VERSION);
 				break;
 			case 15:
-				::LogInfo("MMDVMHost-%s exited on receipt of SIGTERM", VERSION);
+				::LogInfo("MMDVM-Host-%s exited on receipt of SIGTERM", VERSION);
 				break;
 			case 1:
-				::LogInfo("MMDVMHost-%s is restarting on receipt of SIGHUP", VERSION);
+				::LogInfo("MMDVM-Host-%s is restarting on receipt of SIGHUP", VERSION);
 				m_reload = true;
 				break;
 			default:
-				::LogInfo("MMDVMHost-%s exited on receipt of an unknown signal", VERSION);
+				::LogInfo("MMDVM-Host-%s exited on receipt of an unknown signal", VERSION);
 				break;
 		}
 	} while (m_reload || (m_signal == 1));
@@ -272,7 +272,7 @@ int CMMDVMHost::run()
 {
 	bool ret = m_conf.read();
 	if (!ret) {
-		::fprintf(stderr, "MMDVMHost: cannot read the .ini file\n");
+		::fprintf(stderr, "MMDVM-Host: cannot read the .ini file\n");
 		return 1;
 	}
 
@@ -346,7 +346,7 @@ int CMMDVMHost::run()
 	m_mqtt = new CMQTTConnection(m_conf.getMQTTHost(), m_conf.getMQTTPort(), m_conf.getMQTTName(), m_conf.getMQTTAuthEnabled(), m_conf.getMQTTUsername(), m_conf.getMQTTPassword(), subscriptions, m_conf.getMQTTKeepalive());
 	ret = m_mqtt->open();
 	if (!ret) {
-		::fprintf(stderr, "MMDVMHost: unable to start the MQTT Publisher\n");
+		::fprintf(stderr, "MMDVM-Host: unable to start the MQTT Publisher\n");
 		delete m_mqtt;
 		m_mqtt = nullptr;
 	}
@@ -363,10 +363,10 @@ int CMMDVMHost::run()
 	LogInfo(HEADER3);
 	LogInfo(HEADER4);
 
-	LogInfo("MMDVMHost-%s is starting", VERSION);
+	LogInfo("MMDVM-Host-%s is starting", VERSION);
 	LogInfo("Built %s %s (GitID #%.7s)", __TIME__, __DATE__, gitversion);
 
-	writeJSONMessage("MMDVMHost is starting");
+	writeJSONMessage("MMDVM-Host is starting");
 
 	readParams();
 
@@ -629,6 +629,13 @@ int CMMDVMHost::run()
 		bool protect                = m_conf.getDMRProtect();
 		bool mqttVoice              = m_conf.getDMRMQTTVoice();
 		bool mqttData               = m_conf.getDMRMQTTData();
+		bool mqttRaw                = m_conf.getDMRMQTTRaw();
+
+		bool trunking               = m_conf.getDMRTrunkingEnabled();
+		bool controlChannel         = m_conf.getDMRControlChannel();
+		unsigned int systemCode     = m_conf.getDMRSystemCode();
+		bool registrationRequired   = m_conf.getDMRRegistrationRequired();
+		bool alternateSlot          = m_conf.getDMRControlChannelAlternateSlot();
 
 		if (txHang > m_dmrRFModeHang)
 			txHang = m_dmrRFModeHang;
@@ -679,6 +686,18 @@ int CMMDVMHost::run()
 			LogInfo("    MQTT Voice: yes");
 		if (mqttData)
 			LogInfo("    MQTT Data: yes");
+		if (mqttRaw)
+			LogInfo("    MQTT Raw: yes");
+
+		if (trunking) {
+			LogInfo("    Trunking: yes");
+			LogInfo("    Control Channel: %s", controlChannel ? "yes" : "no");
+			LogInfo("    System Code: %u", systemCode);
+			LogInfo("    Registration Required: %s", registrationRequired ? "yes" : "no");
+			LogInfo("    Alternate Slot: %s", alternateSlot ? "yes" : "no");
+		} else {
+			LogInfo("    Trunking: no");
+		}
 
 		switch (dmrBeacons) {
 			case DMR_BEACONS::NETWORK: {
@@ -709,9 +728,19 @@ int CMMDVMHost::run()
 				break;
 		}
 
-		m_dmr = new CDMRControl(id, colorCode, callHang, selfOnly, minSrcId, embeddedLCOnly, dumpTAData, prefixes, blackList, whiteList, slot1TGWhiteList, slot2TGWhiteList, m_timeout, m_modem, m_dmrNetwork, m_duplex, m_dmrLookup, rssi, jitter, ovcm, protect, mqttVoice, mqttData);
+		m_dmr = new CDMRControl(id, colorCode, callHang, selfOnly, minSrcId, embeddedLCOnly, dumpTAData, prefixes, blackList, whiteList, slot1TGWhiteList, slot2TGWhiteList, m_timeout, m_modem, m_dmrNetwork, m_duplex, m_dmrLookup, rssi, jitter, ovcm, protect, mqttVoice, mqttData, mqttRaw);
 
 		m_dmrTXTimer.setTimeout(txHang);
+
+		// Tier III options
+		if (trunking) {
+			m_modem->setDMRShortLC(systemCode, controlChannel, registrationRequired);
+
+			setMode(MODE_DMR);
+
+			if (controlChannel)
+				m_modem->writeDMRAloha(systemCode, registrationRequired, alternateSlot);
+		}
 	}
 #endif
 
@@ -742,6 +771,7 @@ int CMMDVMHost::run()
 		bool uidOverride    = m_conf.getP25OverrideUID();
 		bool selfOnly       = m_conf.getP25SelfOnly();
 		bool remoteGateway  = m_conf.getP25RemoteGateway();
+		bool softId         = m_conf.getP25SoftId();
 		m_p25RFModeHang     = m_conf.getP25ModeHang();
 
 		LogInfo("P25 RF Parameters");
@@ -750,10 +780,11 @@ int CMMDVMHost::run()
 		LogInfo("    UID Override: %s", uidOverride ? "yes" : "no");
 		LogInfo("    Self Only: %s", selfOnly ? "yes" : "no");
 		LogInfo("    Remote Gateway: %s", remoteGateway ? "yes" : "no");
+		LogInfo("    Soft ID: %s", softId ? "yes" : "no");
 		LogInfo("    TX Hang: %us", txHang);
 		LogInfo("    Mode Hang: %us", m_p25RFModeHang);
 
-		m_p25 = new CP25Control(nac, id, selfOnly, uidOverride, m_p25Network, m_timeout, m_duplex, m_dmrLookup, remoteGateway, rssi);
+		m_p25 = new CP25Control(nac, id, selfOnly, uidOverride, m_p25Network, m_timeout, m_duplex, m_dmrLookup, remoteGateway, softId, rssi);
 	}
 #endif
 
@@ -821,7 +852,8 @@ int CMMDVMHost::run()
 	if (remoteControlEnabled)
 		m_remoteControl = new CRemoteControl(this, m_mqtt);
 
-	setMode(MODE_IDLE);
+	if (!m_conf.getDMRTrunkingEnabled())
+		setMode(MODE_IDLE);
 
 	while (!m_killed) {
 		bool lockout = m_modem->hasLockout();
@@ -903,7 +935,7 @@ int CMMDVMHost::run()
 			if (m_mode == MODE_IDLE) {
 				if (m_duplex) {
 					bool ret = m_dmr->processWakeup(data);
-					if (ret) {
+					if (ret || m_conf.getDMRTrunkingEnabled()) {
 						m_modeTimer.setTimeout(m_dmrRFModeHang);
 						setMode(MODE_DMR);
 						dmrBeaconDurationTimer.stop();
@@ -917,7 +949,7 @@ int CMMDVMHost::run()
 			} else if (m_mode == MODE_DMR) {
 				if (m_duplex && !m_modem->hasTX()) {
 					bool ret = m_dmr->processWakeup(data);
-					if (ret) {
+					if (ret || m_conf.getDMRTrunkingEnabled()) {
 						m_modem->writeDMRStart(true);
 						m_dmrTXTimer.start();
 					}
@@ -1016,7 +1048,7 @@ int CMMDVMHost::run()
 		if (transparentSocket != nullptr && len > 0U)
 			transparentSocket->write(data, len, transparentAddress, transparentAddrLen);
 
-		if (!m_fixedMode) {
+		if (!m_fixedMode && !m_conf.getDMRTrunkingEnabled()) {
 			if (m_modeTimer.isRunning() && m_modeTimer.hasExpired())
 				setMode(MODE_IDLE);
 		}
@@ -1349,14 +1381,19 @@ int CMMDVMHost::run()
 
 		dmrBeaconDurationTimer.clock(ms);
 		if (dmrBeaconDurationTimer.isRunning() && dmrBeaconDurationTimer.hasExpired()) {
-			if (!m_fixedMode)
+			if (!m_fixedMode && !m_conf.getDMRTrunkingEnabled())
 				setMode(MODE_IDLE);
 			dmrBeaconDurationTimer.stop();
 		}
 
 		m_dmrTXTimer.clock(ms);
 		if (m_dmrTXTimer.isRunning() && m_dmrTXTimer.hasExpired()) {
-			m_modem->writeDMRStart(false);
+			if (m_conf.getDMRTrunkingEnabled()) {
+				if (!m_conf.getDMRControlChannel())
+					m_modem->writeDMRStart(false);
+			} else {
+				m_modem->writeDMRStart(false);
+			}
 			m_dmrTXTimer.stop();
 		}
 #endif
@@ -1374,8 +1411,8 @@ int CMMDVMHost::run()
 			CThread::sleep(5U);
 	}
 
-	LogInfo("MMDVMHost is stopping");
-	writeJSONMessage("MMDVMHost is stopping");
+	LogInfo("MMDVM-Host is stopping");
+	writeJSONMessage("MMDVM-Host is stopping");
 
 	setMode(MODE_QUIT);
 
@@ -1400,7 +1437,7 @@ int CMMDVMHost::run()
 
 #if defined(USE_DMR)
 	if (m_dmrNetwork != nullptr) {
-		m_dmrNetwork->close(true);
+		m_dmrNetwork->close();
 		delete m_dmrNetwork;
 	}
 #endif
@@ -1472,8 +1509,8 @@ int CMMDVMHost::run()
 	delete m_fm;
 #endif
 
-	LogInfo("MMDVMHost-%s has stopped", VERSION);
-	writeJSONMessage("MMDVMHost has stopped");
+	LogInfo("MMDVM-Host-%s has stopped", VERSION);
+	writeJSONMessage("MMDVM-Host has stopped");
 
 	m_modem->close();
 	delete m_modem;
@@ -1550,6 +1587,8 @@ bool CMMDVMHost::createModem()
 	bool debug                   = m_conf.getModemDebug();
 #if defined(USE_DMR)
 	unsigned int colorCode       = m_conf.getDMRColorCode();
+	bool trunking                = m_conf.getDMRTrunkingEnabled();
+	bool controlChannel          = m_conf.getDMRControlChannel();
 #endif
 #if defined(USE_YSF)
 	bool lowDeviation            = m_conf.getFusionLowDeviation();
@@ -1561,8 +1600,8 @@ bool CMMDVMHost::createModem()
 #if defined(USE_NXDN)
 	unsigned int nxdnTXHang      = m_conf.getNXDNTXHang();
 #endif
-	unsigned int rxFrequency     = m_conf.getRXFrequency();
-	unsigned int txFrequency     = m_conf.getTXFrequency();
+	unsigned int rxFrequency     = m_conf.getModemRXFrequency();
+	unsigned int txFrequency     = m_conf.getModemTXFrequency();
 #if defined(USE_POCSAG)
 	unsigned int pocsagFrequency = m_conf.getPOCSAGFrequency();
 #else
@@ -1655,6 +1694,8 @@ bool CMMDVMHost::createModem()
 	m_modem->setRFParams(rxFrequency, rxOffset, txFrequency, txOffset, txDCOffset, rxDCOffset, rfLevel, pocsagFrequency);
 #if defined(USE_DMR)
 	m_modem->setDMRParams(colorCode);
+	if (trunking)
+		m_modem->setDMRTrunkingParams(controlChannel);
 #endif
 #if defined(USE_YSF)
 	m_modem->setYSFParams(lowDeviation, ysfTXHang);
@@ -1810,7 +1851,6 @@ bool CMMDVMHost::createDMRNetwork()
 	unsigned int jitter  = m_conf.getDMRNetworkJitter();
 	bool slot1           = m_conf.getDMRNetworkSlot1();
 	bool slot2           = m_conf.getDMRNetworkSlot2();
-	HW_TYPE hwType       = m_modem->getHWType();
 	std::string protocol  = m_conf.getDMRNetworkProtocol();
 	unsigned int sctpHB   = m_conf.getDMRNetworkSCTPHeartbeat();
 	unsigned int sctpMaxR = m_conf.getDMRNetworkSCTPMaxRetransmit();
@@ -1849,20 +1889,7 @@ bool CMMDVMHost::createDMRNetwork()
 	LogInfo("    Slot 2: %s", slot2 ? "enabled" : "disabled");
 	LogInfo("    Mode Hang: %us", m_dmrNetModeHang);
 
-	m_dmrNetwork = new CDMRNetwork(gatewayAddress, gatewayPort, localAddress, localPort, id, m_duplex, VERSION, slot1, slot2, hwType, debug, protocol, sctpHB, sctpMaxR, sctpTTL, sctpLocalUDP, sctpRemoteUDP);
-
-	unsigned int rxFrequency = m_conf.getRXFrequency();
-	unsigned int txFrequency = m_conf.getTXFrequency();
-	unsigned int power       = m_conf.getPower();
-	unsigned int colorCode   = m_conf.getDMRColorCode();
-
-	LogInfo("Info Parameters");
-	LogInfo("    Callsign: %s", m_callsign.c_str());
-	LogInfo("    RX Frequency: %uHz", rxFrequency);
-	LogInfo("    TX Frequency: %uHz", txFrequency);
-	LogInfo("    Power: %uW", power);
-
-	m_dmrNetwork->setConfig(m_callsign, rxFrequency, txFrequency, power, colorCode);
+	m_dmrNetwork = new CDMRNetwork(gatewayAddress, gatewayPort, localAddress, localPort, id, m_duplex, slot1, slot2, debug, protocol, sctpHB, sctpMaxR, sctpTTL, sctpLocalUDP, sctpRemoteUDP);
 	
 	bool ret = m_dmrNetwork->open();
 	if (!ret) {

@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1D34E8C1-CFA5-4D60-B509-9DB58DC4AE92}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>MMDVMHost</RootNamespace>
+    <RootNamespace>MMDVM-Host</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -195,7 +195,7 @@
     <ClInclude Include="DMRLookup.h" />
     <ClInclude Include="IIRDirectForm1Filter.h" />
     <ClInclude Include="Log.h" />
-    <ClInclude Include="MMDVMHost.h" />
+    <ClInclude Include="MMDVM-Host.h" />
     <ClInclude Include="ModemPort.h" />
     <ClInclude Include="MQTTConnection.h" />
     <ClInclude Include="Mutex.h" />
@@ -286,7 +286,7 @@
     <ClCompile Include="Hamming.cpp" />
     <ClCompile Include="IIRDirectForm1Filter.cpp" />
     <ClCompile Include="Log.cpp" />
-    <ClCompile Include="MMDVMHost.cpp" />
+    <ClCompile Include="MMDVM-Host.cpp" />
     <ClCompile Include="ModemPort.cpp" />
     <ClCompile Include="MQTTConnection.cpp" />
     <ClCompile Include="Mutex.cpp" />

@@ -96,12 +96,17 @@ void Log(unsigned int level, const char* fmt, ...)
 
 void WriteJSON(const std::string& topLevel, nlohmann::json& json)
 {
+	WriteJSONTopic("json", topLevel, json);
+}
+
+void WriteJSONTopic(const std::string& topic, const std::string& topLevel, nlohmann::json& json)
+{
 	if (m_mqtt != nullptr) {
 		nlohmann::json top;
 
 		top[topLevel] = json;
 
-		m_mqtt->publish("json", top.dump());
+		m_mqtt->publish(topic.c_str(), top.dump(-1, ' ', false, nlohmann::json::error_handler_t::ignore));
 	}
 }
 

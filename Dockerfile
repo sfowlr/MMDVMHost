@@ -9,13 +9,13 @@ RUN apk add --update --no-cache \
     linux-headers \
   && rm -rf /var/cache/apk/*
 
-ADD ./ /MMDVMHost
-WORKDIR /MMDVMHost
+ADD ./ /MMDVM-Host
+WORKDIR /MMDVM-Host
 RUN make \
-&& cp MMDVMHost /usr/local/bin
+&& cp MMDVM-Host /usr/local/bin
 
-VOLUME /MMDVMHost
-WORKDIR /MMDVMHost
+VOLUME /MMDVM-Host
+WORKDIR /MMDVM-Host
 
-CMD ["MMDVMHost", "/MMDVMHost/MMDVMHost.ini"]
+CMD ["MMDVM-Host", "/MMDVM-Host/MMDVM-Host.ini"]
 

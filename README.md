@@ -374,6 +374,7 @@ TXHang=4                # DMR TX hang time in seconds
 # OVCM=0               # Over-the-air Voice Channel Mode: 0=off, 1=RX, 2=TX, 3=both, 4=force off
 # MQTTVoice=0           # Publish AMBE voice frames (base64) to MQTT after FEC
 # MQTTData=0            # Publish data payloads (base64) to MQTT after FEC
+# MQTTRaw=0             # Publish every received burst, unmodified, to {Name}/raw
 ```
 
 DMR operates in 2-slot TDMA mode. In duplex mode, both slots are active simultaneously. Access control supports blacklists, whitelists, prefix filtering, and per-slot talkgroup whitelists via `CDMRAccessControl`.
@@ -1160,6 +1161,33 @@ Published for every voice frame after FEC correction. The `data` field contains 
 ```
 
 Published for every data block after FEC decoding. The `data` field is the decoded payload as base64: 12 bytes for rate 1/2 (BPTC), 18 bytes for rate 3/4 (trellis), or 24 bytes for rate 1/1 (unprotected). `rate` is `"1/2"`, `"3/4"`, or `"1/1"`.
+
+**Raw bursts (when `MQTTRaw=1`), topic `{Name}/raw`:**
+```json
+{
+  "DMR": {
+    "timestamp": "2026-09-26T14:52:43.066Z",
+    "slot": 2,
+    "source": "rf",
+    "type": "data_header",
+    "dt": 6,
+    "n": 0,
+    "src_id": 10081,
+    "dst_id": 201,
+    "group": true,
+    "data": "<44 base64 chars = 33 bytes>"
+  }
+}
+```
+
+Published for every received burst (idle bursts excluded) **before** any FEC regeneration or
+processing, from both RF and network, on its own topic so it does not flood `{Name}/json`.
+`type` is one of `voice_pi_header`, `voice_lc_header`, `terminator`, `csbk`, `data_header`,
+`rate_1_2`, `rate_3_4`, `rate_1`, `voice_sync`, `voice`; `dt` is the numeric data type
+(`0xF0` voice sync, `0xF1` voice). `n` is the voice frame number (B–F = 1–5). `src_id` /
+`dst_id` / `group` are included when the call is already known (RF: after the header; network:
+always). Intended for off-box decoding of data calls (LRRP, ARS, UDT/NMEA GPS), CSBKs and
+embedded LC, which the JSON feed does not carry.
 
 #### `D-Star` - D-Star Activity
 

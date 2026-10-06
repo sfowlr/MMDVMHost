@@ -1,5 +1,6 @@
 /*
- *   Copyright (C) 2011-2018,2020,2021,2023,2025 by Jonathan Naylor G4KLX
+ *   Copyright (C) 2011-2018,2020,2021,2023,2025,2026 by Jonathan Naylor G4KLX
+ *   Copyright (C) 2026 by Adrian Musceac YO8RZZ
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -26,6 +27,8 @@
 #include "Modem.h"
 #include "Utils.h"
 #include "Log.h"
+#include "CRC.h"
+#include "DMRShortLC.h"
 
 #include <cmath>
 #include <cstdio>
@@ -57,6 +60,7 @@ const unsigned char MMDVM_DSTAR_EOT    = 0x13U;
 #endif
 
 #if defined(USE_DMR)
+const unsigned char MMDVM_DMR_ALOHA   = 0x17U;
 const unsigned char MMDVM_DMR_DATA1   = 0x18U;
 const unsigned char MMDVM_DMR_LOST1   = 0x19U;
 const unsigned char MMDVM_DMR_DATA2   = 0x1AU;
@@ -184,6 +188,8 @@ m_dstarEnabled(false),
 #endif
 #if defined(USE_DMR)
 m_dmrEnabled(false),
+m_dmrTrunkingEnabled(false),
+m_dmrControlChannel(false),
 #endif
 #if defined(USE_YSF)
 m_ysfEnabled(false),
@@ -272,7 +278,6 @@ m_cd(false),
 m_lockout(false),
 m_error(false),
 m_mode(MODE_IDLE),
-m_hwType(HW_TYPE::UNKNOWN),
 #if defined(USE_FM)
 m_fmCallsign(),
 m_fmCallsignSpeed(20U),
@@ -400,6 +405,12 @@ void CModem::setDMRParams(unsigned int colorCode)
 	assert(colorCode < 16U);
 
 	m_dmrColorCode = colorCode;
+}
+
+void CModem::setDMRTrunkingParams(bool controlChannel)
+{
+	m_dmrTrunkingEnabled = true;
+	m_dmrControlChannel  = controlChannel;
 }
 #endif
 
@@ -1994,33 +2005,7 @@ bool CModem::readVersion()
 			CThread::sleep(10U);
 			RESP_TYPE_MMDVM resp = getResponse();
 			if ((resp == RESP_TYPE_MMDVM::OK) && (m_buffer[2U] == MMDVM_GET_VERSION)) {
-				if (::memcmp(m_buffer + 4U, "MMDVM ", 6U) == 0)
-					m_hwType = HW_TYPE::MMDVM;
-				else if (::memcmp(m_buffer + 23U, "MMDVM ", 6U) == 0)
-					m_hwType = HW_TYPE::MMDVM;
-				else if (::memcmp(m_buffer + 4U, "DVMEGA", 6U) == 0)
-					m_hwType = HW_TYPE::DVMEGA;
-				else if (::memcmp(m_buffer + 4U, "ZUMspot", 7U) == 0)
-					m_hwType = HW_TYPE::MMDVM_ZUMSPOT;
-				else if (::memcmp(m_buffer + 4U, "MMDVM_HS_Hat", 12U) == 0)
-					m_hwType = HW_TYPE::MMDVM_HS_HAT;
-				else if (::memcmp(m_buffer + 4U, "MMDVM_HS_Dual_Hat", 17U) == 0)
-					m_hwType = HW_TYPE::MMDVM_HS_DUAL_HAT;
-				else if (::memcmp(m_buffer + 4U, "Nano_hotSPOT", 12U) == 0)
-					m_hwType = HW_TYPE::NANO_HOTSPOT;
-				else if (::memcmp(m_buffer + 4U, "Nano_DV", 7U) == 0)
-					m_hwType = HW_TYPE::NANO_DV;
-				else if (::memcmp(m_buffer + 4U, "D2RG_MMDVM_HS", 13U) == 0)
-					m_hwType = HW_TYPE::D2RG_MMDVM_HS;
-				else if (::memcmp(m_buffer + 4U, "MMDVM_HS-", 9U) == 0)
-					m_hwType = HW_TYPE::MMDVM_HS;
-				else if (::memcmp(m_buffer + 4U, "OpenGD77_HS", 11U) == 0)
-					m_hwType = HW_TYPE::OPENGD77_HS;
-				else if (::memcmp(m_buffer + 4U, "SkyBridge", 9U) == 0)
-					m_hwType = HW_TYPE::SKYBRIDGE;
-
 				m_protocolVersion = m_buffer[3U];
-
 				switch (m_protocolVersion) {
 				case 1U:
 					LogInfo("MMDVM protocol version: 1, description: %.*s", m_length - 4U, m_buffer + 4U);
@@ -2408,12 +2393,13 @@ bool CModem::setConfig2()
 
 	buffer[26U] = 0U;
 	buffer[27U] = 0x00U;
-	buffer[28U] = 0x00U;
 
 #if defined(USE_DMR)
+	buffer[28U] = m_dmrTrunkingEnabled ? 0x80U : 0x00U;
 	buffer[29U] = m_dmrColorCode;
 	buffer[30U] = m_dmrDelay;
 #else
+	buffer[28U] = 0U;
 	buffer[29U] = 0U;
 	buffer[30U] = 0U;
 #endif
@@ -2467,7 +2453,6 @@ bool CModem::setFrequency()
 	assert(m_port != nullptr);
 
 	unsigned char buffer[20U];
-	unsigned char len;
 
 #if defined(USE_POCSAG)
 	unsigned int  pocsagFrequency = 433000000U;
@@ -2475,29 +2460,23 @@ bool CModem::setFrequency()
 		pocsagFrequency = m_pocsagFrequency;
 #endif
 
-	if (m_hwType == HW_TYPE::DVMEGA)
-		len = 12U;
-	else {
-		buffer[12U]  = (unsigned char)(m_rfLevel * 2.55F + 0.5F);
+	buffer[12U]  = (unsigned char)(m_rfLevel * 2.55F + 0.5F);
 
 #if defined(USE_POCSAG)
-		buffer[13U] = (pocsagFrequency >> 0)  & 0xFFU;
-		buffer[14U] = (pocsagFrequency >> 8)  & 0xFFU;
-		buffer[15U] = (pocsagFrequency >> 16) & 0xFFU;
-		buffer[16U] = (pocsagFrequency >> 24) & 0xFFU;
+	buffer[13U] = (pocsagFrequency >> 0)  & 0xFFU;
+	buffer[14U] = (pocsagFrequency >> 8)  & 0xFFU;
+	buffer[15U] = (pocsagFrequency >> 16) & 0xFFU;
+	buffer[16U] = (pocsagFrequency >> 24) & 0xFFU;
 #else
-		buffer[13U] = 0U;
-		buffer[14U] = 0U;
-		buffer[15U] = 0U;
-		buffer[16U] = 0U;
+	buffer[13U] = 0U;
+	buffer[14U] = 0U;
+	buffer[15U] = 0U;
+	buffer[16U] = 0U;
 #endif
-
-		len = 17U;
-	}
 
 	buffer[0U]  = MMDVM_FRAME_START;
 
-	buffer[1U]  = len;
+	buffer[1U]  = 17U;
 
 	buffer[2U]  = MMDVM_SET_FREQ;
 
@@ -2513,10 +2492,10 @@ bool CModem::setFrequency()
 	buffer[10U] = (m_txFrequency >> 16) & 0xFFU;
 	buffer[11U] = (m_txFrequency >> 24) & 0xFFU;
 
-	// CUtils::dump(1U, "Written", buffer, len);
+	// CUtils::dump(1U, "Written", buffer, 17U);
 
-	int ret = m_port->write(buffer, len);
-	if (ret != len)
+	int ret = m_port->write(buffer, 17U);
+	if (ret != 17)
 		return false;
 
 	unsigned int count = 0U;
@@ -2646,11 +2625,6 @@ RESP_TYPE_MMDVM CModem::getResponse()
 	return RESP_TYPE_MMDVM::OK;
 }
 
-HW_TYPE CModem::getHWType() const
-{
-	return m_hwType;
-}
-
 unsigned char CModem::getMode() const
 {
 	return m_mode;
@@ -2737,8 +2711,79 @@ bool CModem::writeDMRAbort(unsigned int slotNo)
 	return m_port->write(buffer, 4U) == 4;
 }
 
-bool CModem::writeDMRShortLC(const unsigned char* lc)
+bool CModem::writeDMRAloha(unsigned int systemCode, bool registrationRequired, bool alternateSlot)
 {
+	// 7.1.1.1.4 Aloha (C_ALOHA) CSBK PDU
+	assert(m_port != NULL);
+	CDMRCSBK csbk;
+	unsigned char data[DMR_FRAME_LENGTH_BYTES + 2U];
+	unsigned int tsccas = alternateSlot ? 1 : 0; 
+	unsigned int timeslot_synchronization = 0;
+	unsigned int version = 2; // 3 bits
+	unsigned int offset_timing = 0; // MMDVM uses aligned timing
+	unsigned int net_connection = 1;
+	unsigned int mask = 0; // 5 bits
+	unsigned int service_function = 0; // 2 bits (ALL)
+	unsigned int n_rand_wait = 5; // 4 bits
+	unsigned int backoff = 4; // 4 bits
+	unsigned int ALLMSI = 0xFFFED4;
+	
+	data[2U] = 0x99;
+	data[3U] = 0x00; // FID
+	data[4U] = (unsigned char)((tsccas << 6) | (timeslot_synchronization << 5) | ((version & 0x07) << 2) | (offset_timing << 1) | net_connection);
+	data[5U] = (unsigned char)(((mask & 0x1F)  << 3) | ((service_function & 0x03) << 1) | ((n_rand_wait & 0x0F) >> 3)); // TODO
+	data[6U] = (unsigned char)(((n_rand_wait & 0x0F) << 5) | (((unsigned int)registrationRequired) << 4) | (backoff & 0xF)); // TODO
+	data[7U] = (unsigned char)((systemCode >> 6) & 0xFF);
+	data[8U] = (unsigned char)(((systemCode << 2) | 0x03) & 0xFF);  // PAR hardcoded to 11
+	// MS Address
+	data[9U] = (unsigned char)(ALLMSI >> 16);
+	data[10U] = (unsigned char)((ALLMSI >> 8) & 0xFF);
+	data[11U] = (unsigned char)(ALLMSI & 0xFF);
+	csbk.setCSBKData(data + 2U);
+	csbk.get(data + 2U);
+
+	CDMRSlotType slotType;
+	slotType.setColorCode(m_dmrColorCode);
+	slotType.setDataType(DT_CSBK);
+	slotType.getData(data + 2U);
+
+	CSync::addDMRDataSync(data + 2U, m_duplex);
+	unsigned char buffer[DMR_FRAME_LENGTH_BYTES + 3U];
+
+	buffer[0U]  = MMDVM_FRAME_START;
+	buffer[1U]  = DMR_FRAME_LENGTH_BYTES + 3U;
+	buffer[2U]  = MMDVM_DMR_ALOHA;
+	for(unsigned int i=0; i<DMR_FRAME_LENGTH_BYTES; i++)
+	{
+		buffer[i + 3U]  = data[i+ 2U];
+	}
+
+	return m_port->write(buffer, DMR_FRAME_LENGTH_BYTES + 3U) == 12;
+}
+
+void CModem::setDMRShortLC(unsigned int systemCode, bool isControlChannel, bool registrationRequired)
+{
+	// Used for setting CACH (C_SysParm and P_SysParm) on TSCC and Payload Ch
+	unsigned char lc[5U];
+	// 7.1.2.1 Control Channel System Parameters
+	// 7.1.2.2 Payload Channel System Parameters
+	lc[0U] = isControlChannel? 0x2U : 0x3U;
+	lc[1U] = (unsigned char)((systemCode >> 6) & 0XFF);
+	unsigned int regi = (unsigned int) registrationRequired;
+	lc[2U] = (unsigned char)(((systemCode << 2) & 0xFF) | (regi << 1)); // 6 bit System code, 1 bit Reg_Required, rest of bits CSC
+	lc[3U] = 0x01U; // CSC: This should increment from 1 to 511, but not implemented yet
+	lc[4U] = CCRC::crc8(lc, 4U);
+	unsigned char sLC[9U];
+	CDMRShortLC shortLC;
+	shortLC.encode(lc, sLC);
+	this->writeDMRShortLC(sLC, true);
+}
+
+bool CModem::writeDMRShortLC(const unsigned char* lc, bool control)
+{
+	if (!control && m_dmrTrunkingEnabled)
+		return true;
+
 	assert(m_port != nullptr);
 	assert(lc != nullptr);
 
@@ -3081,3 +3126,15 @@ void CModem::printDebug()
 		CUtils::dump(1U, "Debug: Data", m_buffer + m_offset, m_length - m_offset);
 	}
 }
+
+#if defined(USE_DMR)
+bool CModem::getDMRTrunkingEnabled() const
+{
+	return m_dmrTrunkingEnabled;
+}
+
+bool CModem::getDMRControlChannel() const
+{
+	return m_dmrControlChannel;
+}
+#endif

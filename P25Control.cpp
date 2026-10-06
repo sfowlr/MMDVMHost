@@ -41,7 +41,43 @@ const unsigned char BIT_MASK_TABLE[] = {0x80U, 0x40U, 0x20U, 0x10U, 0x08U, 0x04U
 #define WRITE_BIT(p,i,b) p[(i)>>3] = (b) ? (p[(i)>>3] | BIT_MASK_TABLE[(i)&7]) : (p[(i)>>3] & ~BIT_MASK_TABLE[(i)&7])
 #define READ_BIT(p,i)    (p[(i)>>3] & BIT_MASK_TABLE[(i)&7])
 
-CP25Control::CP25Control(unsigned int nac, unsigned int id, bool selfOnly, bool uidOverride, CP25Network* network, unsigned int timeout, bool duplex, CDMRLookup* lookup, bool remoteGateway, CRSSIInterpolator* rssiMapper) :
+// The Motorola "Soft ID" is an eight character alias carried in the low speed
+// data, two bytes per LDU, as opcode 0x02, length 0x08, the space padded text
+// and a two byte checksum. Motorola radios display it as the caller's name, and
+// reject the string outright if the checksum is wrong.
+//
+// Both checksum bytes are GF(256) lanes modulo x^8+x^4+x^3+x^2+1, where a
+// character contributes its position weight multiplied by the character. The
+// weights and the value for an all spaces string were measured off air.
+const unsigned char SOFT_ID_WEIGHT_HIGH[] = {0x88U, 0x62U, 0xB6U, 0xB3U, 0xEDU, 0x78U, 0x1CU, 0x06U};
+const unsigned char SOFT_ID_WEIGHT_LOW[]  = {0x37U, 0xD9U, 0xF1U, 0x3BU, 0xE7U, 0xE0U, 0x30U, 0x08U};
+
+const unsigned char SOFT_ID_BASE_HIGH = 0x81U;
+const unsigned char SOFT_ID_BASE_LOW  = 0xFAU;
+
+const unsigned char SOFT_ID_LENGTH = 8U;
+
+static unsigned char softIdMultiply(unsigned char a, unsigned char b)
+{
+	unsigned char result = 0x00U;
+
+	while (b != 0x00U) {
+		if ((b & 0x01U) == 0x01U)
+			result ^= a;
+
+		b >>= 1;
+
+		bool overflow = (a & 0x80U) == 0x80U;
+		a <<= 1;
+
+		if (overflow)
+			a ^= 0x1DU;
+	}
+
+	return result;
+}
+
+CP25Control::CP25Control(unsigned int nac, unsigned int id, bool selfOnly, bool uidOverride, CP25Network* network, unsigned int timeout, bool duplex, CDMRLookup* lookup, bool remoteGateway, bool softId, CRSSIInterpolator* rssiMapper) :
 m_nac(nac),
 m_id(id),
 m_selfOnly(selfOnly),
@@ -72,6 +108,9 @@ m_rfData(),
 m_netData(),
 m_rfLSD(),
 m_netLSD(),
+m_softIdEnabled(softId),
+m_softId(),
+m_softIdPtr(0U),
 m_netLDU1(nullptr),
 m_netLDU2(nullptr),
 m_lastIMBE(nullptr),
@@ -108,6 +147,8 @@ m_enabled(true)
 
 	m_rfPDU = new unsigned char[P25_MAX_PDU_COUNT * P25_LDU_FRAME_LENGTH_BYTES + 2U];
 	::memset(m_rfPDU, 0x00U, P25_MAX_PDU_COUNT * P25_LDU_FRAME_LENGTH_BYTES + 2U);
+
+	setSoftId("");
 }
 
 CP25Control::~CP25Control()
@@ -1056,6 +1097,9 @@ void CP25Control::createNetHeader()
 	m_netFrames = 0U;
 	m_netLost = 0U;
 
+	if (m_softIdEnabled)
+		setSoftId(source);
+
 	unsigned char buffer[P25_HDR_FRAME_LENGTH_BYTES + 2U];
 	::memset(buffer, 0x00U, P25_HDR_FRAME_LENGTH_BYTES + 2U);
 
@@ -1083,6 +1127,48 @@ void CP25Control::createNetHeader()
 		addBusyBits(buffer + 2U, P25_HDR_FRAME_LENGTH_BITS, false, true);
 
 	writeQueueNet(buffer, P25_HDR_FRAME_LENGTH_BYTES + 2U);
+}
+
+void CP25Control::setSoftId(const std::string& text)
+{
+	m_softId[0U] = 0x02U;
+	m_softId[1U] = SOFT_ID_LENGTH;
+
+	unsigned char high = SOFT_ID_BASE_HIGH;
+	unsigned char low  = SOFT_ID_BASE_LOW;
+
+	for (unsigned int i = 0U; i < SOFT_ID_LENGTH; i++) {
+		unsigned char c = i < text.length() ? (unsigned char)text.at(i) : ' ';
+
+		if (c >= 'a' && c <= 'z')
+			c -= 32U;
+
+		// Anything outside printable ASCII would be rejected by the radio.
+		if (c < 0x20U || c > 0x7EU)
+			c = ' ';
+
+		m_softId[i + 2U] = c;
+
+		unsigned char delta = c ^ ' ';
+		high ^= softIdMultiply(SOFT_ID_WEIGHT_HIGH[i], delta);
+		low  ^= softIdMultiply(SOFT_ID_WEIGHT_LOW[i], delta);
+	}
+
+	m_softId[10U] = high;
+	m_softId[11U] = low;
+
+	m_softIdPtr = 0U;
+}
+
+void CP25Control::addSoftId()
+{
+	if (m_softIdPtr >= sizeof(m_softId))
+		m_softIdPtr = 0U;
+
+	m_netLSD.setLSD1(m_softId[m_softIdPtr + 0U]);
+	m_netLSD.setLSD2(m_softId[m_softIdPtr + 1U]);
+
+	m_softIdPtr += 2U;
 }
 
 void CP25Control::createNetLDU1()
@@ -1116,8 +1202,12 @@ void CP25Control::createNetLDU1()
 	m_audio.encode(buffer + 2U, m_netLDU1 + 204U, 8U);
 
 	// Add the Low Speed Data
-	m_netLSD.setLSD1(m_netLDU1[201U]);
-	m_netLSD.setLSD2(m_netLDU1[202U]);
+	if (m_softIdEnabled) {
+		addSoftId();
+	} else {
+		m_netLSD.setLSD1(m_netLDU1[201U]);
+		m_netLSD.setLSD2(m_netLDU1[202U]);
+	}
 	m_netLSD.encode(buffer + 2U);
 
 	// Add busy bits
@@ -1169,8 +1259,12 @@ void CP25Control::createNetLDU2()
 	m_audio.encode(buffer + 2U, m_netLDU2 + 204U, 8U);
 
 	// Add the Low Speed Data
-	m_netLSD.setLSD1(m_netLDU2[201U]);
-	m_netLSD.setLSD2(m_netLDU2[202U]);
+	if (m_softIdEnabled) {
+		addSoftId();
+	} else {
+		m_netLSD.setLSD1(m_netLDU2[201U]);
+		m_netLSD.setLSD2(m_netLDU2[202U]);
+	}
 	m_netLSD.encode(buffer + 2U);
 
 	// Add busy bits

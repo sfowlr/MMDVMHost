@@ -1,5 +1,5 @@
 /*
- *   Copyright (C) 2015-2021,2023 by Jonathan Naylor G4KLX
+ *   Copyright (C) 2015-2021,2023,2026 by Jonathan Naylor G4KLX
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -35,30 +35,23 @@ const unsigned int BUFFER_LENGTH = 500U;
 const unsigned int HOMEBREW_DATA_PACKET_LENGTH = 55U;
 
 
-CDMRNetwork::CDMRNetwork(const std::string& address, unsigned short port, const std::string& localAddress, unsigned short localPort, unsigned int id, bool duplex, const char* version, bool slot1, bool slot2, HW_TYPE hwType, bool debug, const std::string& protocol, unsigned int sctpHeartbeat, unsigned int sctpMaxRetransmit, unsigned int sctpTTL, unsigned short sctpLocalUDPPort, unsigned short sctpRemoteUDPPort) :
+CDMRNetwork::CDMRNetwork(const std::string& address, unsigned short port, const std::string& localAddress, unsigned short localPort, unsigned int id, bool duplex, bool slot1, bool slot2, bool debug, const std::string& protocol, unsigned int sctpHeartbeat, unsigned int sctpMaxRetransmit, unsigned int sctpTTL, unsigned short sctpLocalUDPPort, unsigned short sctpRemoteUDPPort) :
 m_addressStr(address),
 m_addr(),
 m_addrLen(0U),
 m_port(port),
 m_id(nullptr),
 m_duplex(duplex),
-m_version(version),
 m_debug(debug),
 m_socket(nullptr),
 m_enabled(false),
 m_slot1(slot1),
 m_slot2(slot2),
-m_hwType(hwType),
 m_buffer(nullptr),
 m_streamId(nullptr),
 m_rxData(1000U, "DMR Network"),
 m_beacon(false),
 m_random(),
-m_callsign(),
-m_rxFrequency(0U),
-m_txFrequency(0U),
-m_power(0U),
-m_colorCode(0U),
 m_pingTimer(1000U, 10U)
 {
 	assert(!address.empty());
@@ -106,15 +99,6 @@ CDMRNetwork::~CDMRNetwork()
 	delete[] m_id;
 }
 
-void CDMRNetwork::setConfig(const std::string & callsign, unsigned int rxFrequency, unsigned int txFrequency, unsigned int power, unsigned int colorCode)
-{
-	m_callsign    = callsign;
-	m_rxFrequency = rxFrequency;
-	m_txFrequency = txFrequency;
-	m_power       = power;
-	m_colorCode   = colorCode;
-}
-
 bool CDMRNetwork::open()
 {
 	if (m_addrLen == 0U) {
@@ -139,14 +123,29 @@ void CDMRNetwork::enable(bool enabled)
 	m_enabled = enabled;
 }
 
-bool CDMRNetwork::read(CDMRData& data)
+bool CDMRNetwork::read(CDMRData& data, TrunkingCommandParameters& command)
 {
 	if (m_rxData.isEmpty())
 		return false;
 
+	command.trunkingParams = false;
+
 	unsigned char length = 0U;
 	m_rxData.getData(&length, 1U);
 	m_rxData.getData(m_buffer, length);
+
+	if (::memcmp(m_buffer, "DMRT", 4U) == 0) {
+		unsigned int command_type = (unsigned int)m_buffer[4U];
+
+		if (command_type == DMRCommand::ChannelEnableDisable)
+			command.channelEnable = ((m_buffer[5U] & 0x01U) == 0x01U);
+
+		command.slot           = (m_buffer[5U] & 0x80U) == 0x80U ? 2U : 1U;
+		command.commandType    = command_type;
+		command.trunkingParams = true;
+
+		return true;
+	}
 
 	// Is this a data packet?
 	if (::memcmp(m_buffer, "DMRD", 4U) != 0)
@@ -305,7 +304,7 @@ bool CDMRNetwork::isConnected() const
 	return (m_addrLen != 0);
 }
 
-void CDMRNetwork::close(bool sayGoodbye)
+void CDMRNetwork::close()
 {
 	LogMessage("DMR, Closing DMR Network");
 
@@ -316,7 +315,7 @@ void CDMRNetwork::clock(unsigned int ms)
 {
 	m_pingTimer.clock(ms);
 	if (m_pingTimer.isRunning() && m_pingTimer.hasExpired()) {
-		writeConfig();
+		writePing();
 		m_pingTimer.start();
 	}
 
@@ -334,7 +333,7 @@ void CDMRNetwork::clock(unsigned int ms)
 	if (m_debug)
 		CUtils::dump(1U, "DMR Network Received", m_buffer, length);
 
-	if (::memcmp(m_buffer, "DMRD", 4U) == 0) {
+	if ((::memcmp(m_buffer, "DMRD", 4U) == 0) || (::memcmp(m_buffer, "DMRT", 4U) == 0)) {
 		if (m_enabled) {
 			unsigned char len = length;
 			m_rxData.addData(&len, 1U);
@@ -349,91 +348,16 @@ void CDMRNetwork::clock(unsigned int ms)
 	}
 }
 
-bool CDMRNetwork::writeConfig()
+bool CDMRNetwork::writePing()
 {
-	const char* software;
-	char slots = '0';
-	if (m_duplex) {
-		if (m_slot1 && m_slot2)
-			slots = '3';
-		else if (m_slot1 && !m_slot2)
-			slots = '1';
-		else if (!m_slot1 && m_slot2)
-			slots = '2';
+	unsigned char buffer[4U];
 
-		switch (m_hwType) {
-		case HW_TYPE::MMDVM:
-			software = "MMDVM";
-			break;
-		case HW_TYPE::MMDVM_HS:
-			software = "MMDVM_MMDVM_HS";
-			break;
-		case HW_TYPE::MMDVM_HS_DUAL_HAT:
-			software = "MMDVM_MMDVM_HS_Dual_Hat";
-			break;
-		case HW_TYPE::NANO_HOTSPOT:
-			software = "MMDVM_Nano_hotSPOT";
-			break;
-		default:
-			software = "MMDVM_Unknown";
-			break;
-		}
-	} else {
-		slots = '4';
+	buffer[0U] = 'D';
+	buffer[1U] = 'M';
+	buffer[2U] = 'R';
+	buffer[3U] = 'P';
 
-		switch (m_hwType) {
-		case HW_TYPE::MMDVM:
-			software = "MMDVM_DMO";
-			break;
-		case HW_TYPE::DVMEGA:
-			software = "MMDVM_DVMega";
-			break;
-		case HW_TYPE::MMDVM_ZUMSPOT:
-			software = "MMDVM_ZUMspot";
-			break;
-		case HW_TYPE::MMDVM_HS_HAT:
-			software = "MMDVM_MMDVM_HS_Hat";
-			break;
-		case HW_TYPE::MMDVM_HS_DUAL_HAT:
-			software = "MMDVM_MMDVM_HS_Dual_Hat";
-			break;
-		case HW_TYPE::NANO_HOTSPOT:
-			software = "MMDVM_Nano_hotSPOT";
-			break;
-		case HW_TYPE::NANO_DV:
-			software = "MMDVM_Nano_DV";
-			break;
-		case HW_TYPE::D2RG_MMDVM_HS:
-			software = "MMDVM_D2RG_MMDVM_HS";
-			break;
-		case HW_TYPE::MMDVM_HS:
-			software = "MMDVM_MMDVM_HS";
-			break;
-		case HW_TYPE::OPENGD77_HS:
-			software = "MMDVM_OpenGD77_HS";
-			break;
-		case HW_TYPE::SKYBRIDGE:
-			software = "MMDVM_SkyBridge";
-			break;
-		default:
-			software = "MMDVM_Unknown";
-			break;
-		}
-	}
-
-	unsigned int power = m_power;
-	if (power > 99U)
-		power = 99U;
-
-	char buffer[150U];
-
-	::memcpy(buffer + 0U, "DMRC", 4U);
-	::memcpy(buffer + 4U, m_id, 4U);
-	::sprintf(buffer + 8U, "%-8.8s%09u%09u%02u%02u%c%-40.40s%-40.40s",
-		m_callsign.c_str(), m_rxFrequency, m_txFrequency, power, m_colorCode, slots, m_version,
-		software);
-
-	return write((unsigned char*)buffer, 119U);
+	return write(buffer, 4U);
 }
 
 bool CDMRNetwork::wantsBeacon()
@@ -463,4 +387,3 @@ bool CDMRNetwork::write(const unsigned char* data, unsigned int length)
 }
 
 #endif
-

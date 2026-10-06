@@ -50,7 +50,7 @@
     <ClInclude Include="Log.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MMDVMHost.h">
+    <ClInclude Include="MMDVM-Host.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="QR1676.h">
@@ -319,7 +319,7 @@
     <ClCompile Include="Log.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MMDVMHost.cpp">
+    <ClCompile Include="MMDVM-Host.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="QR1676.cpp">
