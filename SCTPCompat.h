@@ -182,6 +182,9 @@ inline bool sctp_fd_valid(sctp_fd_t s)
 
 /* ── Kernel SCTP (lksctp) ────────────────────────────────────────────── */
 
+/* netinet/in.h must precede netinet/sctp.h, which #defines IPPROTO_SCTP */
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <netinet/sctp.h>
 #include <poll.h>
 #include <unistd.h>
