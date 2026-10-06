@@ -35,7 +35,7 @@ const unsigned int BUFFER_LENGTH = 500U;
 const unsigned int HOMEBREW_DATA_PACKET_LENGTH = 55U;
 
 
-CDMRNetwork::CDMRNetwork(const std::string& address, unsigned short port, const std::string& localAddress, unsigned short localPort, unsigned int id, bool duplex, const char* version, bool slot1, bool slot2, HW_TYPE hwType, bool debug, const std::string& protocol, unsigned int sctpHeartbeat, unsigned int sctpMaxRetransmit, unsigned int sctpTTL) :
+CDMRNetwork::CDMRNetwork(const std::string& address, unsigned short port, const std::string& localAddress, unsigned short localPort, unsigned int id, bool duplex, const char* version, bool slot1, bool slot2, HW_TYPE hwType, bool debug, const std::string& protocol, unsigned int sctpHeartbeat, unsigned int sctpMaxRetransmit, unsigned int sctpTTL, unsigned short sctpLocalUDPPort, unsigned short sctpRemoteUDPPort) :
 m_addressStr(address),
 m_addr(),
 m_addrLen(0U),
@@ -67,7 +67,8 @@ m_pingTimer(1000U, 10U)
 
 #if defined(HAS_SCTP)
 	if (protocol == "SCTP") {
-		CSCTPSocket* sctp = new CSCTPSocket(localAddress, localPort);
+		CSCTPSocket::initLib(sctpLocalUDPPort);
+		CSCTPSocket* sctp = new CSCTPSocket(localAddress, localPort, sctpRemoteUDPPort);
 		sctp->setHeartbeat(sctpHeartbeat);
 		sctp->setMaxRetransmit(sctpMaxRetransmit);
 		sctp->setTTL(sctpTTL);

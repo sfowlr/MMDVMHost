@@ -26,14 +26,12 @@
 #include <cassert>
 #include <cerrno>
 #include <cstring>
-#include <poll.h>
-#include <unistd.h>
-#include <netinet/sctp.h>
 
-CSCTPSocket::CSCTPSocket(const std::string& localAddress, unsigned short localPort) :
+CSCTPSocket::CSCTPSocket(const std::string& localAddress, unsigned short localPort, unsigned short remoteUDPPort) :
 m_localAddress(localAddress),
 m_localPort(localPort),
-m_fd(-1),
+m_remoteUDPPort(remoteUDPPort),
+m_fd(SCTP_FD_INVALID),
 m_af(AF_UNSPEC),
 m_peerAddr(),
 m_peerAddrLen(0U),
@@ -64,9 +62,19 @@ void CSCTPSocket::setTTL(unsigned int ttlMs)
 	m_ttlMs = ttlMs;
 }
 
+bool CSCTPSocket::initLib(unsigned short localUDPPort)
+{
+	return sctp_lib_init(localUDPPort);
+}
+
+void CSCTPSocket::cleanupLib()
+{
+	sctp_lib_cleanup();
+}
+
 bool CSCTPSocket::open(const sockaddr_storage& address)
 {
-	assert(m_fd == -1);
+	assert(!sctp_fd_valid(m_fd));
 
 	m_af = address.ss_family;
 
@@ -88,15 +96,15 @@ bool CSCTPSocket::open(const sockaddr_storage& address)
 	}
 
 	// Create SCTP one-to-one socket
-	m_fd = ::socket(m_af, SOCK_STREAM, IPPROTO_SCTP);
-	if (m_fd < 0) {
+	m_fd = sctp_create_socket(m_af, m_remoteUDPPort);
+	if (!sctp_fd_valid(m_fd)) {
 		LogError("SCTP: cannot create socket, err: %d", errno);
 		return false;
 	}
 
 	// Set SCTP_NODELAY to minimize latency
 	int nodelay = 1;
-	if (::setsockopt(m_fd, IPPROTO_SCTP, SCTP_NODELAY, &nodelay, sizeof(nodelay)) < 0)
+	if (sctp_setopt(m_fd, IPPROTO_SCTP, SCTP_NODELAY, &nodelay, sizeof(nodelay)) < 0)
 		LogWarning("SCTP: cannot set SCTP_NODELAY, err: %d", errno);
 
 	// Configure single stream
@@ -105,19 +113,19 @@ bool CSCTPSocket::open(const sockaddr_storage& address)
 	initmsg.sinit_num_ostreams  = 1;
 	initmsg.sinit_max_instreams = 1;
 	initmsg.sinit_max_attempts  = 3;
-	if (::setsockopt(m_fd, IPPROTO_SCTP, SCTP_INITMSG, &initmsg, sizeof(initmsg)) < 0)
+	if (sctp_setopt(m_fd, IPPROTO_SCTP, SCTP_INITMSG, &initmsg, sizeof(initmsg)) < 0)
 		LogWarning("SCTP: cannot set SCTP_INITMSG, err: %d", errno);
 
 	// Bind to local address if port is specified
 	if (m_localPort > 0U) {
 		int reuse = 1;
-		if (::setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+		if (sctp_setopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
 			LogError("SCTP: cannot set SO_REUSEADDR, err: %d", errno);
 			close();
 			return false;
 		}
 
-		if (::bind(m_fd, (sockaddr*)&localAddr, localAddrLen) < 0) {
+		if (sctp_bind(m_fd, (sockaddr*)&localAddr, localAddrLen) < 0) {
 			LogError("SCTP: cannot bind to local address, err: %d", errno);
 			close();
 			return false;
@@ -133,11 +141,14 @@ bool CSCTPSocket::open(const sockaddr_storage& address)
 		m_peerAddrLen = sizeof(sockaddr_storage);
 
 	// Connect to peer (establishes SCTP association)
-	if (::connect(m_fd, (sockaddr*)&m_peerAddr, m_peerAddrLen) < 0) {
+	if (sctp_connect(m_fd, (sockaddr*)&m_peerAddr, m_peerAddrLen) < 0) {
 		LogError("SCTP: cannot connect to peer, err: %d", errno);
 		close();
 		return false;
 	}
+
+	// Set non-blocking after connect (usrsctp needs blocking connect)
+	sctp_set_nonblocking(m_fd);
 
 	// Configure heartbeat interval
 	if (m_heartbeatMs > 0U) {
@@ -146,7 +157,7 @@ bool CSCTPSocket::open(const sockaddr_storage& address)
 		::memcpy(&paddrparams.spp_address, &m_peerAddr, m_peerAddrLen);
 		paddrparams.spp_hbinterval = m_heartbeatMs;
 		paddrparams.spp_flags      = SPP_HB_ENABLE;
-		if (::setsockopt(m_fd, IPPROTO_SCTP, SCTP_PEER_ADDR_PARAMS, &paddrparams, sizeof(paddrparams)) < 0)
+		if (sctp_setopt(m_fd, IPPROTO_SCTP, SCTP_PEER_ADDR_PARAMS, &paddrparams, sizeof(paddrparams)) < 0)
 			LogWarning("SCTP: cannot set heartbeat interval, err: %d", errno);
 		else
 			LogInfo("SCTP heartbeat interval set to %ums", m_heartbeatMs);
@@ -157,7 +168,7 @@ bool CSCTPSocket::open(const sockaddr_storage& address)
 		struct sctp_assocparams assocparams;
 		::memset(&assocparams, 0, sizeof(assocparams));
 		assocparams.sasoc_asocmaxrxt = m_maxRetransmit;
-		if (::setsockopt(m_fd, IPPROTO_SCTP, SCTP_ASSOCINFO, &assocparams, sizeof(assocparams)) < 0)
+		if (sctp_setopt(m_fd, IPPROTO_SCTP, SCTP_ASSOCINFO, &assocparams, sizeof(assocparams)) < 0)
 			LogWarning("SCTP: cannot set max retransmissions, err: %d", errno);
 		else
 			LogInfo("SCTP max retransmissions set to %u", m_maxRetransmit);
@@ -176,65 +187,36 @@ int CSCTPSocket::read(unsigned char* buffer, unsigned int length, sockaddr_stora
 	assert(buffer != nullptr);
 	assert(length > 0U);
 
-	if (m_fd == -1)
+	if (!sctp_fd_valid(m_fd))
 		return 0;
 
-	// Non-blocking poll
-	struct pollfd pfd;
-	pfd.fd      = m_fd;
-	pfd.events  = POLLIN;
-	pfd.revents = 0;
-
-	int ret = ::poll(&pfd, 1, 0);
-	if (ret < 0) {
-		LogError("SCTP: error from poll, err: %d", errno);
+	int len = sctp_poll_recv(m_fd, buffer, length);
+	if (len < 0) {
+		LogError("SCTP: read error or association lost");
 		return -1;
 	}
 
-	if ((pfd.revents & POLLIN) == 0)
+	if (len == 0)
 		return 0;
-
-	// Check for hangup/error (association lost)
-	if (pfd.revents & (POLLHUP | POLLERR)) {
-		LogError("SCTP: association lost");
-		return -1;
-	}
-
-	ssize_t len = ::recv(m_fd, buffer, length, 0);
-	if (len <= 0) {
-		if (len == 0) {
-			LogError("SCTP: association closed by peer");
-		} else {
-			LogError("SCTP: error from recv, err: %d", errno);
-		}
-		return -1;
-	}
 
 	// Return stored peer address for compatibility with CUDPSocket::match()
 	::memcpy(&address, &m_peerAddr, sizeof(sockaddr_storage));
 	addressLength = m_peerAddrLen;
 
-	return (int)len;
+	return len;
 }
 
 bool CSCTPSocket::write(const unsigned char* buffer, unsigned int length, const sockaddr_storage& address, unsigned int addressLength)
 {
 	assert(buffer != nullptr);
 	assert(length > 0U);
-	assert(m_fd >= 0);
+	assert(sctp_fd_valid(m_fd));
 
 	ssize_t ret;
-	if (m_ttlMs > 0U) {
-		// Use sctp_sendmsg for PR-SCTP timed reliability
-		ret = ::sctp_sendmsg(m_fd, buffer, length, nullptr, 0,
-			0,            // ppid
-			0,            // flags
-			0,            // stream_no
-			m_ttlMs,      // timetolive (PR-SCTP TTL in ms)
-			0);           // context
-	} else {
-		ret = ::send(m_fd, buffer, length, 0);
-	}
+	if (m_ttlMs > 0U)
+		ret = sctp_send_ttl(m_fd, buffer, length, m_ttlMs);
+	else
+		ret = sctp_send_data(m_fd, buffer, length);
 
 	if (ret < 0) {
 		LogError("SCTP: error from send, err: %d", errno);
@@ -246,10 +228,8 @@ bool CSCTPSocket::write(const unsigned char* buffer, unsigned int length, const 
 
 void CSCTPSocket::close()
 {
-	if (m_fd >= 0) {
-		::close(m_fd);
-		m_fd = -1;
-	}
+	sctp_close_fd(m_fd);
+	m_fd = SCTP_FD_INVALID;
 }
 
 #endif

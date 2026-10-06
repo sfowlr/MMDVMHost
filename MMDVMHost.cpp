@@ -1815,6 +1815,8 @@ bool CMMDVMHost::createDMRNetwork()
 	unsigned int sctpHB   = m_conf.getDMRNetworkSCTPHeartbeat();
 	unsigned int sctpMaxR = m_conf.getDMRNetworkSCTPMaxRetransmit();
 	unsigned int sctpTTL  = m_conf.getDMRNetworkSCTPTTL();
+	unsigned short sctpLocalUDP  = m_conf.getDMRNetworkSCTPLocalUDPPort();
+	unsigned short sctpRemoteUDP = m_conf.getDMRNetworkSCTPRemoteUDPPort();
 	m_dmrNetModeHang      = m_conf.getDMRNetworkModeHang();
 
 #if !defined(HAS_SCTP)
@@ -1837,13 +1839,17 @@ bool CMMDVMHost::createDMRNetwork()
 		LogInfo("    SCTP Heartbeat: %ums", sctpHB);
 		LogInfo("    SCTP Max Retransmit: %u", sctpMaxR);
 		LogInfo("    SCTP TTL: %ums%s", sctpTTL, sctpTTL == 0U ? " (reliable)" : "");
+#if defined(HAS_USRSCTP)
+		LogInfo("    SCTP Local UDP Port: %hu", sctpLocalUDP);
+		LogInfo("    SCTP Remote UDP Port: %hu", sctpRemoteUDP);
+#endif
 	}
 	LogInfo("    Jitter: %ums", jitter);
 	LogInfo("    Slot 1: %s", slot1 ? "enabled" : "disabled");
 	LogInfo("    Slot 2: %s", slot2 ? "enabled" : "disabled");
 	LogInfo("    Mode Hang: %us", m_dmrNetModeHang);
 
-	m_dmrNetwork = new CDMRNetwork(gatewayAddress, gatewayPort, localAddress, localPort, id, m_duplex, VERSION, slot1, slot2, hwType, debug, protocol, sctpHB, sctpMaxR, sctpTTL);
+	m_dmrNetwork = new CDMRNetwork(gatewayAddress, gatewayPort, localAddress, localPort, id, m_duplex, VERSION, slot1, slot2, hwType, debug, protocol, sctpHB, sctpMaxR, sctpTTL, sctpLocalUDP, sctpRemoteUDP);
 
 	unsigned int rxFrequency = m_conf.getRXFrequency();
 	unsigned int txFrequency = m_conf.getTXFrequency();

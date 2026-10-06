@@ -66,7 +66,8 @@ The DVMega supports D-Star, DMR, and System Fusion.
   - `libutil` - login utilities (Linux only)
   - `libmosquitto` - Eclipse Mosquitto MQTT client library
   - `nlohmann/json` - JSON for Modern C++ (header-only)
-  - `libsctp` - SCTP networking (Linux only, optional — enables SCTP transport for DMR)
+  - `libsctp` - SCTP networking (Linux, optional — enables SCTP transport for DMR via kernel SCTP)
+  - `libusrsctp` - SCTP networking (macOS, optional — enables SCTP transport for DMR via userspace SCTP)
 - **Hardware**: MMDVM-compatible modem connected via UART, I2C, or UDP
 
 ## Building
@@ -94,6 +95,9 @@ Install dependencies via Homebrew, then build:
 ```bash
 brew install mosquitto nlohmann-json
 
+# Optional: for SCTP transport support (DMR)
+brew install libusrsctp
+
 git clone https://github.com/g4klx/MMDVMHost.git
 cd MMDVMHost
 make
@@ -101,7 +105,7 @@ make
 
 The Makefile auto-detects macOS via `uname -s` and adjusts include/library paths for Homebrew (both `/usr/local` and `/opt/homebrew` for Apple Silicon).
 
-On Linux, the Makefile automatically detects if `libsctp-dev` is installed and enables SCTP support (`-DHAS_SCTP`). No manual flags are needed.
+On Linux, the Makefile automatically detects if `libsctp-dev` is installed and enables SCTP support (`-DHAS_SCTP`). On macOS, it detects `libusrsctp` via Homebrew and enables userspace SCTP support (`-DHAS_SCTP -DHAS_USRSCTP`).
 
 ### Windows (Visual Studio 2022)
 
@@ -480,7 +484,7 @@ FM audio processing includes configurable IIR pre-emphasis and de-emphasis filte
 
 ### Network Sections
 
-Each mode has a corresponding network section for gateway connectivity. Most use UDP; the DMR network also supports optional SCTP transport (Linux only):
+Each mode has a corresponding network section for gateway connectivity. Most use UDP; the DMR network also supports optional SCTP transport (Linux via kernel SCTP, macOS via usrsctp):
 
 ```ini
 [D-Star Network]
@@ -501,15 +505,19 @@ GatewayPort=62031
 Jitter=360              # Jitter buffer size in ms
 Slot1=1                 # 1=enable slot 1 networking
 Slot2=1                 # 1=enable slot 2 networking
-Protocol=UDP            # "UDP" (default) or "SCTP" (Linux only, requires libsctp-dev)
+Protocol=UDP            # "UDP" (default) or "SCTP" (requires libsctp-dev on Linux, libusrsctp on macOS)
 # SCTPHeartbeat=10000   # SCTP heartbeat interval in ms (default 10000)
 # SCTPMaxRetransmit=3   # SCTP max retransmissions before association failure (default 3)
 # SCTPTTL=0             # SCTP PR-SCTP TTL in ms; 0=fully reliable (default 0). Should be < Jitter
+# SCTPLocalUDPPort=9899 # (macOS/usrsctp only) local UDP encapsulation port (default 9899)
+# SCTPRemoteUDPPort=9899 # (macOS/usrsctp only) remote peer's UDP encapsulation port (default 9899)
 # ModeHang=3
 Debug=0
 ```
 
 When `Protocol=SCTP` is set, the DMR network uses an SCTP association instead of UDP datagrams. SCTP provides ordered delivery (compensating for the lack of application-level reordering), built-in heartbeat monitoring for faster master disconnect detection, and optional partial reliability.
+
+On Linux, SCTP uses the kernel SCTP stack (`lksctp`). On macOS, it uses the `usrsctp` userspace library, which encapsulates SCTP inside UDP. When two usrsctp processes run on the same machine, each must use a different `SCTPLocalUDPPort` and set `SCTPRemoteUDPPort` to the other's local port.
 
 **SCTP tuning parameters** (only apply when `Protocol=SCTP`):
 
@@ -518,6 +526,8 @@ When `Protocol=SCTP` is set, the DMR network uses an SCTP association instead of
 | `SCTPHeartbeat` | 10000 | Heartbeat probe interval in ms. Lower values detect master failure faster. |
 | `SCTPMaxRetransmit` | 3 | Failed retransmissions before the association is declared dead. |
 | `SCTPTTL` | 0 | PR-SCTP timed reliability TTL in ms. When non-zero, packets that cannot be delivered within this time are dropped instead of retransmitted. Set this **below** the `Jitter` value (e.g., `SCTPTTL=200` with `Jitter=360`) so the jitter buffer can absorb the gap while stale retransmits are avoided. A value of 0 means fully reliable delivery. |
+| `SCTPLocalUDPPort` | 9899 | (macOS/usrsctp only) Local UDP port for SCTP-over-UDP encapsulation. |
+| `SCTPRemoteUDPPort` | 9899 | (macOS/usrsctp only) Remote peer's UDP encapsulation port. |
 
 ```ini
 [System Fusion Network]

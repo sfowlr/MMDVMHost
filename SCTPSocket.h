@@ -22,17 +22,21 @@
 #if defined(HAS_SCTP)
 
 #include "INetSocket.h"
+#include "SCTPCompat.h"
 
 #include <string>
 
 class CSCTPSocket : public INetSocket {
 public:
-	CSCTPSocket(const std::string& localAddress, unsigned short localPort);
+	CSCTPSocket(const std::string& localAddress, unsigned short localPort, unsigned short remoteUDPPort = 9899U);
 	virtual ~CSCTPSocket();
 
 	void setHeartbeat(unsigned int intervalMs);
 	void setMaxRetransmit(unsigned int maxRetransmit);
 	void setTTL(unsigned int ttlMs);
+
+	static bool initLib(unsigned short localUDPPort = 9899U);
+	static void cleanupLib();
 
 	bool open(const sockaddr_storage& address) override;
 
@@ -44,7 +48,8 @@ public:
 private:
 	std::string    m_localAddress;
 	unsigned short m_localPort;
-	int            m_fd;
+	unsigned short m_remoteUDPPort;
+	sctp_fd_t      m_fd;
 	sa_family_t    m_af;
 	sockaddr_storage m_peerAddr;
 	unsigned int   m_peerAddrLen;

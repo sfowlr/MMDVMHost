@@ -306,6 +306,8 @@ m_dmrNetworkProtocol("UDP"),
 m_dmrNetworkSCTPHeartbeat(10000U),
 m_dmrNetworkSCTPMaxRetransmit(3U),
 m_dmrNetworkSCTPTTL(0U),
+m_dmrNetworkSCTPLocalUDPPort(9899U),
+m_dmrNetworkSCTPRemoteUDPPort(9899U),
 #if defined(USE_YSF)
 m_fusionNetworkEnabled(false),
 m_fusionNetworkLocalAddress(),
@@ -1019,6 +1021,10 @@ bool CConf::read()
 				m_dmrNetworkSCTPMaxRetransmit = (unsigned int)::atoi(value);
 			else if (::strcmp(key, "SCTPTTL") == 0)
 				m_dmrNetworkSCTPTTL = (unsigned int)::atoi(value);
+			else if (::strcmp(key, "SCTPLocalUDPPort") == 0)
+				m_dmrNetworkSCTPLocalUDPPort = (unsigned short)::atoi(value);
+			else if (::strcmp(key, "SCTPRemoteUDPPort") == 0)
+				m_dmrNetworkSCTPRemoteUDPPort = (unsigned short)::atoi(value);
 #endif
 #if defined(USE_YSF)
 		} else if (section == SECTION::FUSION_NETWORK) {
@@ -2066,6 +2072,16 @@ unsigned int CConf::getDMRNetworkSCTPMaxRetransmit() const
 unsigned int CConf::getDMRNetworkSCTPTTL() const
 {
 	return m_dmrNetworkSCTPTTL;
+}
+
+unsigned short CConf::getDMRNetworkSCTPLocalUDPPort() const
+{
+	return m_dmrNetworkSCTPLocalUDPPort;
+}
+
+unsigned short CConf::getDMRNetworkSCTPRemoteUDPPort() const
+{
+	return m_dmrNetworkSCTPRemoteUDPPort;
 }
 #endif
 

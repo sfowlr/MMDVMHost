@@ -284,6 +284,8 @@ public:
 	unsigned int getDMRNetworkSCTPHeartbeat() const;
 	unsigned int getDMRNetworkSCTPMaxRetransmit() const;
 	unsigned int getDMRNetworkSCTPTTL() const;
+	unsigned short getDMRNetworkSCTPLocalUDPPort() const;
+	unsigned short getDMRNetworkSCTPRemoteUDPPort() const;
 #endif
 
 #if defined(USE_YSF)
@@ -588,6 +590,8 @@ private:
 	unsigned int m_dmrNetworkSCTPHeartbeat;
 	unsigned int m_dmrNetworkSCTPMaxRetransmit;
 	unsigned int m_dmrNetworkSCTPTTL;
+	unsigned short m_dmrNetworkSCTPLocalUDPPort;
+	unsigned short m_dmrNetworkSCTPRemoteUDPPort;
 
 #if defined(USE_YSF)
 	bool         m_fusionNetworkEnabled;

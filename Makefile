@@ -9,6 +9,13 @@ ifeq ($(UNAME_S),Darwin)
 CFLAGS  = -g -O3 -Wall -std=c++17 -pthread -MMD -MD -I/usr/local/include -I/opt/homebrew/include -I/opt/homebrew/opt/mosquitto/include -I/opt/homebrew/opt/nlohmann-json/include
 LIBS    = -lpthread -lmosquitto
 LDFLAGS = -g -L/usr/local/lib -L/opt/homebrew/lib -L/opt/homebrew/opt/mosquitto/lib
+# Auto-detect usrsctp on macOS via Homebrew
+USRSCTP_PREFIX := $(shell brew --prefix libusrsctp 2>/dev/null)
+ifneq ($(USRSCTP_PREFIX),)
+CFLAGS  += -DHAS_SCTP -DHAS_USRSCTP -I$(USRSCTP_PREFIX)/include
+LIBS    += -lusrsctp
+LDFLAGS += -L$(USRSCTP_PREFIX)/lib
+endif
 else
 CFLAGS  = -g -O3 -Wall -std=c++17 -Wno-psabi -pthread -MMD -MD -I/usr/local/include
 LIBS    = -lpthread -lutil -lmosquitto
