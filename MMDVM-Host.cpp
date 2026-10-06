@@ -1890,6 +1890,7 @@ bool CMMDVMHost::createDMRNetwork()
 	LogInfo("    Mode Hang: %us", m_dmrNetModeHang);
 
 	m_dmrNetwork = new CDMRNetwork(gatewayAddress, gatewayPort, localAddress, localPort, id, m_duplex, slot1, slot2, debug, protocol, sctpHB, sctpMaxR, sctpTTL, sctpLocalUDP, sctpRemoteUDP);
+	m_dmrNetwork->setConfig(m_callsign, VERSION, m_conf.getModemRXFrequency(), m_conf.getModemTXFrequency(), m_conf.getDMRColorCode());
 	
 	bool ret = m_dmrNetwork->open();
 	if (!ret) {

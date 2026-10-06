@@ -38,6 +38,8 @@ public:
 	CDMRNetwork(const std::string& gatewayAddress, unsigned short gatewayPort, const std::string& localAddress, unsigned short localPort, unsigned int id, bool duplex, bool slot1, bool slot2, bool debug, const std::string& protocol = "UDP", unsigned int sctpHeartbeat = 0U, unsigned int sctpMaxRetransmit = 0U, unsigned int sctpTTL = 0U, unsigned short sctpLocalUDPPort = 9899U, unsigned short sctpRemoteUDPPort = 9899U);
 	~CDMRNetwork();
 
+	void setConfig(const std::string& callsign, const char* version, unsigned int rxFrequency, unsigned int txFrequency, unsigned int colorCode);
+
 	bool open();
 
 	void enable(bool enabled);
@@ -76,8 +78,13 @@ private:
 	bool             m_beacon;
 	std::mt19937     m_random;
 	CTimer           m_pingTimer;
+	std::string      m_callsign;
+	std::string      m_version;
+	unsigned int     m_rxFrequency;
+	unsigned int     m_txFrequency;
+	unsigned int     m_colorCode;
 
-	bool writePing();
+	bool writeConfig();
 
 	bool write(const unsigned char* data, unsigned int length);
 };

@@ -52,7 +52,12 @@ m_streamId(nullptr),
 m_rxData(1000U, "DMR Network"),
 m_beacon(false),
 m_random(),
-m_pingTimer(1000U, 10U)
+m_pingTimer(1000U, 10U),
+m_callsign(),
+m_version(),
+m_rxFrequency(0U),
+m_txFrequency(0U),
+m_colorCode(0U)
 {
 	assert(!address.empty());
 	assert(port > 0U);
@@ -97,6 +102,15 @@ CDMRNetwork::~CDMRNetwork()
 	delete[] m_buffer;
 	delete[] m_streamId;
 	delete[] m_id;
+}
+
+void CDMRNetwork::setConfig(const std::string& callsign, const char* version, unsigned int rxFrequency, unsigned int txFrequency, unsigned int colorCode)
+{
+	m_callsign    = callsign;
+	m_version     = version;
+	m_rxFrequency = rxFrequency;
+	m_txFrequency = txFrequency;
+	m_colorCode   = colorCode;
 }
 
 bool CDMRNetwork::open()
@@ -315,7 +329,7 @@ void CDMRNetwork::clock(unsigned int ms)
 {
 	m_pingTimer.clock(ms);
 	if (m_pingTimer.isRunning() && m_pingTimer.hasExpired()) {
-		writePing();
+		writeConfig();
 		m_pingTimer.start();
 	}
 
@@ -348,16 +362,33 @@ void CDMRNetwork::clock(unsigned int ms)
 	}
 }
 
-bool CDMRNetwork::writePing()
+// DMRC: MMDVMHost's no-auth config packet, sent in place of DMRP as the
+// keepalive. Upstream removed it; HBlink4 still needs it to register a peer.
+bool CDMRNetwork::writeConfig()
 {
-	unsigned char buffer[4U];
+	char slots = '4';
+	if (m_duplex) {
+		if (m_slot1 && m_slot2)
+			slots = '3';
+		else if (m_slot1)
+			slots = '1';
+		else if (m_slot2)
+			slots = '2';
+		else
+			slots = '0';
+	}
 
-	buffer[0U] = 'D';
-	buffer[1U] = 'M';
-	buffer[2U] = 'R';
-	buffer[3U] = 'P';
+	const char* software = m_duplex ? "MMDVM" : "MMDVM_DMO";
 
-	return write(buffer, 4U);
+	char buffer[150U];
+
+	::memcpy(buffer + 0U, "DMRC", 4U);
+	::memcpy(buffer + 4U, m_id, 4U);
+	::snprintf(buffer + 8U, sizeof(buffer) - 8U, "%-8.8s%09u%09u%02u%02u%c%-40.40s%-40.40s",
+		m_callsign.c_str(), m_rxFrequency, m_txFrequency, 0U, m_colorCode, slots, m_version.c_str(),
+		software);
+
+	return write((unsigned char*)buffer, 119U);
 }
 
 bool CDMRNetwork::wantsBeacon()
