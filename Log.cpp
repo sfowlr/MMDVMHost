@@ -110,3 +110,9 @@ void WriteJSONTopic(const std::string& topic, const std::string& topLevel, nlohm
 	}
 }
 
+void WriteBinaryTopic(const std::string& topic, const unsigned char* data, unsigned int len)
+{
+	if (m_mqtt != nullptr)
+		m_mqtt->publish(topic.c_str(), data, len);
+}
+

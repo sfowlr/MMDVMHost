@@ -374,7 +374,7 @@ TXHang=4                # DMR TX hang time in seconds
 # OVCM=0               # Over-the-air Voice Channel Mode: 0=off, 1=RX, 2=TX, 3=both, 4=force off
 # MQTTVoice=0           # Publish AMBE voice frames (base64) to MQTT after FEC
 # MQTTData=0            # Publish data payloads (base64) to MQTT after FEC
-# MQTTRaw=0             # Publish every received burst, unmodified, to {Name}/raw
+# MQTTRaw=0             # Publish every received burst, unmodified, to {Name}/raw (49 bytes of binary): 1 JSON, 2 binary (49 bytes)
 ```
 
 DMR operates in 2-slot TDMA mode. In duplex mode, both slots are active simultaneously. Access control supports blacklists, whitelists, prefix filtering, and per-slot talkgroup whitelists via `CDMRAccessControl`.
@@ -1162,32 +1162,39 @@ Published for every voice frame after FEC correction. The `data` field contains 
 
 Published for every data block after FEC decoding. The `data` field is the decoded payload as base64: 12 bytes for rate 1/2 (BPTC), 18 bytes for rate 3/4 (trellis), or 24 bytes for rate 1/1 (unprotected). `rate` is `"1/2"`, `"3/4"`, or `"1/1"`.
 
-**Raw bursts (when `MQTTRaw=1`), topic `{Name}/raw`:**
-```json
-{
-  "DMR": {
-    "timestamp": "2026-09-26T14:52:43.066Z",
-    "slot": 2,
-    "source": "rf",
-    "type": "data_header",
-    "dt": 6,
-    "n": 0,
-    "src_id": 10081,
-    "dst_id": 201,
-    "group": true,
-    "data": "<44 base64 chars = 33 bytes>"
-  }
-}
-```
+**Raw bursts (when `MQTTRaw=1`), topic `{Name}/raw`:** each burst as 49 bytes of binary,
+little endian (RadioDesk's raw burst form, version 1):
+
+| Bytes | Field |
+|---|---|
+| 0 | version, `0x01` |
+| 1 | flags: bit 0 slot 2, bit 1 source network, bit 2 addressed (source / destination known), bit 3 group |
+| 2 | data type, 0-15 as in the slot type; `0xF0` voice sync (burst A), `0xF1` voice (B-F) |
+| 3 | the voice burst's index (B-F = 1-5; 0 otherwise) |
+| 4-9 | UTC time in ms since the Unix epoch, u48 |
+| 10-12 | source id, u24 (0 unless addressed) |
+| 13-15 | destination id, u24 (0 unless addressed) |
+| 16-48 | the 33-byte burst |
 
 Published for every received burst (idle bursts excluded) **before** any FEC regeneration or
 processing, from both RF and network, on its own topic so it does not flood `{Name}/json`.
-`type` is one of `voice_pi_header`, `voice_lc_header`, `terminator`, `csbk`, `data_header`,
-`rate_1_2`, `rate_3_4`, `rate_1`, `voice_sync`, `voice`; `dt` is the numeric data type
-(`0xF0` voice sync, `0xF1` voice). `n` is the voice frame number (B–F = 1–5). `src_id` /
-`dst_id` / `group` are included when the call is already known (RF: after the header; network:
-always). Intended for off-box decoding of data calls (LRRP, ARS, UDT/NMEA GPS), CSBKs and
+The source and destination are included when the call is already known (RF: after the header;
+network: always). Intended for off-box decoding of data calls (LRRP, ARS, UDT/NMEA GPS), CSBKs and
 embedded LC, which the JSON feed does not carry.
+
+**Raw bursts as binary (when `MQTTRaw=2`), same topic:** the same bursts, each as 49 bytes,
+little endian (RadioDesk's form, version 1), about a quarter of the JSON's size:
+
+| Bytes | Field |
+|---|---|
+| 0 | version, `0x01` (never `{`, so a subscriber can tell it from the JSON) |
+| 1 | flags: bit 0 slot 2, bit 1 source network, bit 2 addressed (`src_id` / `dst_id` known), bit 3 group |
+| 2 | `dt` (`0xF0` voice sync, `0xF1` voice) |
+| 3 | `n` |
+| 4-9 | UTC time in ms since the Unix epoch, u48 |
+| 10-12 | source id, u24 (0 unless addressed) |
+| 13-15 | destination id, u24 (0 unless addressed) |
+| 16-48 | the 33-byte burst |
 
 #### `D-Star` - D-Star Activity
 

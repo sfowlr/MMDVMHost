@@ -37,5 +37,6 @@ extern void LogFinalise();
 
 extern void WriteJSON(const std::string& topLevel, nlohmann::json& json);
 extern void WriteJSONTopic(const std::string& topic, const std::string& topLevel, nlohmann::json& json);
+extern void WriteBinaryTopic(const std::string& topic, const unsigned char* data, unsigned int len);
 
 #endif

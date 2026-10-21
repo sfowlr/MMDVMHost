@@ -29,6 +29,8 @@
 #if defined(USE_DMR)
 
 #include <cassert>
+#include <chrono>
+#include <cstring>
 #include <ctime>
 #include <algorithm>
 #include <cstdint>
@@ -2919,27 +2921,12 @@ void CDMRSlot::publishMQTTData(const unsigned char* data, unsigned int length, c
 	WriteJSON("DMR", json);
 }
 
-static const char* rawTypeName(unsigned char dataType)
-{
-	switch (dataType) {
-	case DT_VOICE_PI_HEADER:    return "voice_pi_header";
-	case DT_VOICE_LC_HEADER:    return "voice_lc_header";
-	case DT_TERMINATOR_WITH_LC: return "terminator";
-	case DT_CSBK:               return "csbk";
-	case DT_DATA_HEADER:        return "data_header";
-	case DT_RATE_12_DATA:       return "rate_1_2";
-	case DT_RATE_34_DATA:       return "rate_3_4";
-	case DT_IDLE:               return "idle";
-	case DT_RATE_1_DATA:        return "rate_1";
-	case DT_VOICE_SYNC:         return "voice_sync";
-	case DT_VOICE:              return "voice";
-	default:                    return "unknown";
-	}
-}
-
 // Publish a received 33-byte burst exactly as it came off the modem / network,
 // before FEC regeneration, to {Name}/raw. For offline decoding of data calls
 // (LRRP, ARS, UDT/NMEA GPS…), CSBKs and embedded LC, which the JSON feed omits.
+// RadioDesk's binary form, version 1, 49 bytes little endian: version, flags (bit 0 TS2, bit 1 network,
+// bit 2 addressed, bit 3 group), data type (0xF0 voice sync, 0xF1 voice), n, UTC ms (u48), source and
+// destination ids (u24), the burst.
 void CDMRSlot::publishMQTTRaw(const unsigned char* burst, unsigned char dataType, const char* source, unsigned int n, unsigned int srcId, unsigned int dstId, bool group)
 {
 	assert(burst != nullptr);
@@ -2948,22 +2935,24 @@ void CDMRSlot::publishMQTTRaw(const unsigned char* burst, unsigned char dataType
 	if (!m_mqttRaw)
 		return;
 
-	nlohmann::json json;
-
-	json["timestamp"] = CUtils::createTimestamp();
-	json["slot"]      = int(m_slotNo);
-	json["source"]    = source;
-	json["type"]      = rawTypeName(dataType);
-	json["dt"]        = int(dataType);
-	json["n"]         = int(n);
-	if (srcId != 0U) {
-		json["src_id"] = int(srcId);
-		json["dst_id"] = int(dstId);
-		json["group"]  = group;
+	unsigned char out[16U + DMR_FRAME_LENGTH_BYTES];
+	bool addressed = srcId != 0U;
+	out[0U] = 0x01U;
+	out[1U] = (m_slotNo == 2U ? 0x01U : 0x00U) | (::strcmp(source, "network") == 0 ? 0x02U : 0x00U) |
+		(addressed ? 0x04U : 0x00U) | (addressed && group ? 0x08U : 0x00U);
+	out[2U] = dataType;
+	out[3U] = (unsigned char)n;
+	uint64_t ms = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	for (unsigned int i = 0U; i < 6U; i++)
+		out[4U + i] = (unsigned char)(ms >> (8U * i));
+	uint32_t src = addressed ? srcId : 0U, dst = addressed ? dstId : 0U;
+	for (unsigned int i = 0U; i < 3U; i++) {
+		out[10U + i] = (unsigned char)(src >> (8U * i));
+		out[13U + i] = (unsigned char)(dst >> (8U * i));
 	}
-	json["data"]      = base64Encode(burst, DMR_FRAME_LENGTH_BYTES);
+	::memcpy(out + 16U, burst, DMR_FRAME_LENGTH_BYTES);
 
-	WriteJSONTopic("raw", "DMR", json);
+	WriteBinaryTopic("raw", out, sizeof(out));
 }
 
 #endif
